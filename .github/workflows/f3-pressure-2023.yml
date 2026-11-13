@@ -1,0 +1,86 @@
+name: F2/F3 — original 2023 H2 pressure heel and RVO compressor duty
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - '.github/workflows/f3-pressure-2023.yml'
+      - 'src/ptxflex/pressure_storage_duty.py'
+      - 'src/ptxflex/f3_matched_ideal_benchmark.py'
+      - 'src/ptxflex/storage_reference_vessels.py'
+      - 'src/ptxflex/hydrogen_physics.py'
+      - 'tests/test_f3_pressure_storage_duty.py'
+      - 'pyproject.toml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pressure_scenario_verified:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pin real CoolProp EOS, HiGHS and upstream source parser
+        run: python -m pip install -e '.[dev,physics,original-sources]'
+      - name: Test new EOS-gas-heel/energy/pressure integration and tamper rejection
+        run: python -m pytest -v tests/test_f3_pressure_storage_duty.py tests/test_hydrogen_physics_f2.py tests/test_storage_reference_vessels.py tests/test_f3_matched_ideal_benchmark.py
+      - name: Retrieve immutable 2023 real ENTSO-E-price ERA5-wind PyNEXUS scenario archives (no synthetic 2023 replacement)
+        run: |
+          mkdir -p /tmp/frozen_PyNEXUS_2023 outputs/F3_pressure_source
+          for pair in "12612294862 E.zip" "12613045475 ES.zip"; do
+            set -- $pair
+            curl --fail --location --retry 3 --retry-all-errors \
+              --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/abhijith-sivaprasadan/PyNEXUS/actions/artifacts/$1/zip" \
+              -o "/tmp/frozen_PyNEXUS_2023/$2"
+          done
+      - name: Solve 8760h E/ES with physically screened Type I 200bar max-inventory bank and conservative compressor work
+        run: |
+          python -m ptxflex.f3_matched_ideal_benchmark \
+            --E /tmp/frozen_PyNEXUS_2023/E.zip \
+            --ES /tmp/frozen_PyNEXUS_2023/ES.zip \
+            --pressure-vessel-id I_200bar \
+            --storage-mode max_inventory \
+            --time-limit 330 \
+            --output outputs/F3_pressure_source/2023_E_ES_200bar_TypeI_MAX_source_max_inventory.json
+      - name: Independently compare source-condition results, no false plant gate claims
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,math
+          d=json.loads(Path('outputs/F3_pressure_source/2023_E_ES_200bar_TypeI_MAX_source_max_inventory.json').read_text())
+          assert d['source_original_E_sha256']=='069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051'
+          assert d['source_original_EplusS_sha256']=='cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9'
+          assert d['source_based_pressure_EOS_heel_and_RVO_compression_screen']
+          assert d['screened_vessel_id']=='I_200bar'
+          assert d['original_source_storage_definition']=='max_inventory'
+          assert not d['native_full_BAFU_product_LCA_included']
+          assert not d['fully_validated_v1_release']
+          a,b=d['E'],d['E_plus_S']
+          for case,r in (('E',a),('E_plus_S',b)):
+              assert r['solver_metadata']['solver_optimal']
+              assert r['solver_metadata']['mip_relative_gap']<=1e-6
+              assert r['pressure_vessel_screen']['gas_heel_kg']>0
+              assert r['pressure_vessel_screen']['includes_cooling_electricity'] is False
+              assert r['audited_annual']['pressure_EOS_bounds']['EOS_hourly_mass_bounds_imply_pressure_limits']
+              assert max(r['audited_annual']['independent_max_physical_residuals'].values())<2e-4
+              print(case,'net wholesale EUR2023',r['audited_annual']['total_wholesale_net_grid_eur2023'])
+              print(case,'compressor screening MWh',r['audited_annual']['annual_compression_electricity_mwh'])
+              print(case,'min/max bank pressure bar abs',r['audited_annual']['pressure_EOS_bounds'])
+          assert math.isclose(a['audited_annual']['annual_service_h2_kg'],b['audited_annual']['annual_service_h2_kg'],abs_tol=1e-5)
+          print('SOURCE-PINNED pressure-limited screened operation PASS; NOT full physical plant/BOM/BAFU comparison')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 2023-E-ES-physical-heel-source-RVO-compression-screen-incomplete-plant
+          path: outputs/F3_pressure_source/
+          if-no-files-found: warn
+          retention-days: 90
