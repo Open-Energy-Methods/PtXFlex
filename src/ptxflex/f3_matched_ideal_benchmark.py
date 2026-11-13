@@ -34,6 +34,7 @@ from scipy.sparse import coo_matrix
 import yaml
 
 from .pynexus_hydrogen_benchmark import load_archive
+from .pressure_storage_duty import validate_screened_duty, audit_gas_pressure_boundaries
 
 SCHEMA="ptxflex.F3_frozen_2023_E_delivered_hourly_matched_IDEAL_storage.v0.1"
 SOURCE_SHA={
@@ -143,7 +144,7 @@ def load_matched_pilot(E_original,ES_original):
 
 
 def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
-                        *,time_limit_s=240,mip_rel_gap=1e-6):
+                        *,time_limit_s=240,mip_rel_gap=1e-6,pressure_duty=None):
     """Minimize annual signed net grid wholesale settlement for fixed H2 service.
 
     Scientific optimization test: same hourly target in both configurations.
@@ -173,6 +174,11 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
     charge_max=params["charge_max_kg_h"]
     discharge_max=params["discharge_max_kg_h"]
     loss=params["loss_fraction_per_hour"]
+    if pressure_duty is not None:
+        validate_screened_duty(pressure_duty,params)
+    storage_lower_bound=pressure_duty.min_model_inventory_kg() if pressure_duty is not None else 0.0
+    compressor_mw_per_kg_h=pressure_duty.compressor_mw_per_kg_h() if pressure_duty is not None else 0.0
+    fixed_heel_leak=pressure_duty.inventory_equation_fixed_heel_leak_kg_h(loss) if pressure_duty is not None else 0.0
     if (min(cap,y,pmax,pmin,ramp,gridmax,charge_max,discharge_max)<=0
             or not 0<=initial<=cap or not 0<=final<=cap or not 0<=loss<1):
         raise SourceLockedDispatchError("invalid source model bounds")
@@ -189,7 +195,7 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
         lower[idx(t,U)],upper[idx(t,U)]=0,1
         lower[idx(t,G)],upper[idx(t,G)]=-gridmax,gridmax
         lower[idx(t,C)],upper[idx(t,C)]=0,wind[t]
-        lower[idx(t,S)],upper[idx(t,S)]=0,cap
+        lower[idx(t,S)],upper[idx(t,S)]=storage_lower_bound,cap
         lower[idx(t,CH)],upper[idx(t,CH)]=0,charge_max
         lower[idx(t,DIS)],upper[idx(t,DIS)]=0,discharge_max
         lower[idx(t,Z)],upper[idx(t,Z)]=0,1
@@ -206,7 +212,8 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
                 rr.append(row);cc.append(col);vv.append(float(value))
     for t in range(n):
         # Signed grid exchange: no simultaneous grid import and export.
-        add({idx(t,P):1,idx(t,C):1,idx(t,G):-1},wind[t],wind[t])
+        add({idx(t,P):1,idx(t,C):1,idx(t,G):-1,
+             idx(t,CH):compressor_mw_per_kg_h},wind[t],wind[t])
         # Source original PEM unit commitment with nonzero minimum load.
         add({idx(t,P):1,idx(t,U):-pmin},0,math.inf)
         add({idx(t,P):1,idx(t,U):-pmax},-math.inf,0)
@@ -215,7 +222,8 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
         # Source standing H2 inventory loss at previous hour.
         row={idx(t,S):1,idx(t,CH):-1,idx(t,DIS):1}
         if t:row[idx(t-1,S)]=-(1-loss)
-        add(row,(1-loss)*initial if t==0 else 0,(1-loss)*initial if t==0 else 0)
+        storage_rhs=((1-loss)*initial if t==0 else 0)-fixed_heel_leak
+        add(row,storage_rhs,storage_rhs)
         # No simultaneous charge+discharge, even if solver degenerate.
         add({idx(t,CH):1,idx(t,Z):-charge_max},-math.inf,0)
         add({idx(t,DIS):1,idx(t,Z):discharge_max},-math.inf,discharge_max)
@@ -231,7 +239,10 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
     if result.x is None:
         raise SourceLockedDispatchError(f"full-physics-unverified matched ideal MILP infeasible or failed: {result.status}: {result.message}")
     x=np.asarray(result.x,dtype=float).reshape((n,DIM))
-    audit=independently_audit(x,wind,price,target,params,source_cost=float(result.fun))
+    audit=independently_audit(x,wind,price,target,params,source_cost=float(result.fun),
+                              pressure_duty=pressure_duty)
+    if pressure_duty is not None:
+        audit["pressure_EOS_bounds"]=audit_gas_pressure_boundaries(pressure_duty,x[:,S])
     opt_gap=getattr(result,"mip_gap",None)
     gap=float(opt_gap) if opt_gap is not None else None
     return {
@@ -248,21 +259,29 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
       "derived_audit":audit,
       "source_input_history_kind":"observed NL market and ERA5-derived wind; H2 service from original solved model",
       "is_actual_full_hourly_contract_satisfied":False,
-      "is_ideal_storage_only":True,
+      "is_ideal_storage_only":pressure_duty is None,
+      "pressure_vessel_eos_screened":pressure_duty is not None,
+      "source_RVO_compressor_upper_pressure_work_included":pressure_duty is not None,
+      "missing_dynamic_compressor_map_and_cooling_electricity":True,
       "complete_physical_storage_compression_and_BAU_LCA":False,
       "valid_for_environmental_superiority_claim":False,
     }
 
 
-def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4):
+def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4,
+                        pressure_duty=None):
     """Recompute all physical equations from result, independent of solver matrix."""
     n=len(wind);y=params["h2_coefficient_kg_mwh"];loss=params["loss_fraction_per_hour"]
     p,u,g,cur,s,ch,dis,z=(x[:,i] for i in range(DIM))
     s_prev=np.r_[params["initial_kg"],s[:-1]]
+    compressor_electric_mw=(pressure_duty.compressor_mw_per_kg_h()*ch
+                            if pressure_duty is not None else np.zeros_like(ch))
+    extra_heel_loss=(pressure_duty.inventory_equation_fixed_heel_leak_kg_h(loss)
+                     if pressure_duty is not None else 0.)
     delivered=y*p-ch+dis
-    balance_e=wind+g-p-cur
+    balance_e=wind+g-p-compressor_electric_mw-cur
     balance_h=delivered-target
-    balance_s=s-(1-loss)*s_prev-ch+dis
+    balance_s=s-(1-loss)*s_prev-ch+dis+extra_heel_loss
     cost_check=float(np.dot(g,price))
     bad={
      "electrical":float(np.max(np.abs(balance_e))),
@@ -275,6 +294,8 @@ def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4):
      "online_upper_MW":float(np.max(np.maximum(0,p-params["rated_mw"]*params["max_load_fraction"]*u))),
      "ramp_excess_MW":float(np.max(np.maximum(0,np.abs(np.diff(p))-params["ramp_mw_h"]))),
      "storage_capacity_excess_kg":float(np.max(np.maximum(0,s-params["capacity_kg"]))),
+     "storage_heel_underrun_kg":float(np.max(np.maximum(0,(
+         pressure_duty.min_model_inventory_kg() if pressure_duty is not None else 0)-s))),
      "grid_interconnect_excess_MW":float(np.max(np.maximum(0,np.abs(g)-params["grid_max_mw"]))),
     }
     if any(v>abs_tol for v in bad.values()):
@@ -283,23 +304,29 @@ def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4):
       "independent_max_physical_residuals":bad,
       "annual_service_h2_kg":float(np.sum(target)),
       "annual_h2_produced_kg":float(np.sum(y*p)),
-      "annual_h2_storage_loss_kg":float(np.sum(loss*s_prev)),
+      "annual_h2_storage_loss_kg":float(np.sum(loss*s_prev)+n*extra_heel_loss),
+      "annual_compression_electricity_mwh":float(np.sum(compressor_electric_mw)),
+      "maximum_compressor_load_MW":float(np.max(compressor_electric_mw)),
+      "total_gas_heel_mass_kg":float(pressure_duty.gas_heel_kg) if pressure_duty is not None else None,
       "total_wholesale_net_grid_eur2023":cost_check,
       "grid_import_mwh":float(np.sum(np.maximum(g,0))),
       "grid_export_mwh":float(np.sum(np.maximum(-g,0))),
       "electrolyser_energy_mwh":float(np.sum(p)),
       "wind_noncurtailed_including_grid_export_mwh":float(np.sum(wind-cur)),
-      "wind_consumed_for_electrolysis_mwh":float(np.sum(p-np.maximum(g,0))),
+      "wind_consumed_for_electrolysis_mwh":float(np.sum(p+compressor_electric_mw-np.maximum(g,0))) if pressure_duty is None else None,
+      "wind_to_total_PEM_and_compressor_mwh":float(np.sum(p+compressor_electric_mw-np.maximum(g,0))),
       "wind_exported_mwh":float(np.sum(np.maximum(-g,0))),
       "independent_annual_renewable_plus_grid_energy_closure_mwh":float(
-          np.sum(p-np.maximum(g,0))+np.sum(np.maximum(g,0))-np.sum(p)),
+          np.sum(p+compressor_electric_mw-np.maximum(g,0))+
+          np.sum(np.maximum(g,0))-np.sum(p+compressor_electric_mw)),
       "max_storage_state_kg":float(np.max(s)),
       "max_charge_kg_h":float(np.max(ch)),
       "max_discharge_kg_h":float(np.max(dis)),
       "hours":int(n),
       "strict_reference_hourly_delivery_profile_is_matched":True,
       "no_full_original_50t_daily_contract_claim":True,
-      "no_pressure_or_compression_claim":True,
+      "no_pressure_or_compression_claim":pressure_duty is None,
+      "pressure_eos_source_screen_only":pressure_duty is not None,
     }
 
 
