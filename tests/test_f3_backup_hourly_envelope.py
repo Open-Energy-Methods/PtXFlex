@@ -1,5 +1,7 @@
 """Synthetic 8760-hour traces only; genuine source handled by hash-locked CI."""
 import copy
+import hashlib
+import json
 import numpy as np
 import pytest
 from ptxflex.f3_backup_hourly_envelope import (
@@ -32,6 +34,8 @@ def fixture():
     trace={"derived_source_not_original_raw_prices_or_wind":True,
            "source_E_delivered_reference_profile_is_modelled":True,
            "hourly_additional_shortfall_kg":a}
+    cert["cases"]["max_inventory"]["E"]["hourly_evidence_sha256"]=hashlib.sha256(
+        (json.dumps(trace,sort_keys=True,allow_nan=False,separators=(",",":"))+"\n").encode()).hexdigest()
     return cert,trace
 
 
@@ -62,6 +66,10 @@ def test_source_case_restore_requires_declared_external_backup_not_fake_LCA():
     lambda c,t:t["hourly_additional_shortfall_kg"].append(5.),
     lambda c,t:t["hourly_additional_shortfall_kg"].__setitem__(10,float("nan")),
     lambda c,t:t["hourly_additional_shortfall_kg"].__setitem__(100,-10.),
+    # Same annual mass and same number of nonzero hours, but wrong timestamps.
+    lambda c,t:(t["hourly_additional_shortfall_kg"].__setitem__(0,2.),
+                t["hourly_additional_shortfall_kg"].__setitem__(1,1.)),
+    lambda c,t:c["cases"]["max_inventory"]["E"].update(hourly_evidence_sha256="0"*64),
 ])
 def test_reject_tampered_or_synthetic_as_real_pressure_backup(mutate):
     c,t=fixture();mutate(c,t)
