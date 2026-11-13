@@ -21,6 +21,7 @@ def fixture():
         "additional_shortfall_kg": 10000.0,
         "achievable_annual_h2_under_screen_kg": target - 10000.0,
         "shortfall_hour_count": 15,
+        "hourly_evidence_sha256": "a"*64,
         "audit": {"independent_max_physical_residuals": checks, "pressure_EOS_bounds": physical},
     }
     es = copy.deepcopy(e)
@@ -65,6 +66,8 @@ def test_certifies_interval_without_mislabeling_feasible_incumbent():
     lambda d: d["scenario_results"]["max_inventory"]["E"]["audit"]["independent_max_physical_residuals"].update(storage=1.0),
     lambda d: d["scenario_results"]["max_inventory"]["E"]["audit"]["pressure_EOS_bounds"].update(EOS_hourly_mass_bounds_imply_pressure_limits=False),
     lambda d: d["scenario_results"]["max_inventory"]["E"].update(solver_gap=float("nan")),
+    lambda d: d["scenario_results"]["max_inventory"]["E"].update(hourly_evidence_sha256=None),
+    lambda d: d["scenario_results"]["max_inventory"]["E_plus_S"].update(hourly_evidence_sha256="z"*64),
     lambda d: d["scenario_results"]["max_inventory"]["E"].update(status="VERIFIED_LP_OPTIMISTIC_LOWER_BOUND_NOT_OPERABLE"),
 ])
 def test_invalid_source_physics_or_optimality_cannot_be_certified(mutation):
