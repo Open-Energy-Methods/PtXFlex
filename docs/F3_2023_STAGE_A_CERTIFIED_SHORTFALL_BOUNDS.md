@@ -103,3 +103,34 @@ and discounted cash-flow requirements are met.
 shortfall conclusions bounded/proven and independently reviewed; F3 remains
 OPEN until same-hour service and physical duty are certified for the chosen
 comparison.
+
+## 6. Verified post-checkpoint numerical outcome — 14 November 2026
+
+The first certificate workflow has now passed for all four cases:
+[original-source Stage A certificate run #43524738270](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43524738270).
+The independent full-service 40t witness also passed in both modes:
+[zero-shortfall witness run #43525385492](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43525385492).
+
+| 200bar Type I screening scenario | Stage A dual lower (kg additional shortage) | Stage A incumbent upper (kg) | Reconciled mathematical minimum |
+|---|---:|---:|---|
+| E 20t, gross maximum | 65,860.378 | 66,524.317 | Proven positive; exact minimum remains between the bounds |
+| E 20t, physically usable | 3,718.744 | 3,720.371 | Proven positive; exact minimum remains between the bounds |
+| E+S 40t, gross maximum | 0 | 2,307.413 | **0 kg proven by independently feasible full-service witness** |
+| E+S 40t, physically usable | 0 | 0 | **0 kg proven by both Stage A and independent full-service witness** |
+
+**Interpretation correction:** the earlier 2,307.413 kg E+S maximum-inventory
+shortage was only a suboptimal feasible Stage A dispatch; interpreting it as
+an irreducible shortage would be scientifically false. A full hourly-service
+feasible trajectory exists under the same 200bar screening scenario.
+
+The E system requires a **positive additional service deficit** in both
+screened storage interpretations. Therefore the current source-physical
+E and E+S systems are **not equal-delivery configurations**, despite the
+E+S full E-reference service being feasible. Do not compare their wholesale
+settlement, full LCOH or complete life-cycle GWP directly.
+
+A six-artifact SHA-verified reconciliation workflow has been added at
+[`f3-reconcile-2023-evidence.yml`](../.github/workflows/f3-reconcile-2023-evidence.yml).
+The upstream GitHub Actions artifact ZIPs are retained for 90 days; the
+original PyNEXUS source archives still have a separate preservation deadline.
+An independently reviewed long-term private escrow remains a P0 release gate.
