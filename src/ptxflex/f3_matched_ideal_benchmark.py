@@ -34,7 +34,7 @@ from scipy.sparse import coo_matrix
 import yaml
 
 from .pynexus_hydrogen_benchmark import load_archive
-from .pressure_storage_duty import validate_screened_duty, audit_gas_pressure_boundaries
+from .pressure_storage_duty import validate_screened_duty, audit_gas_pressure_boundaries, build_screened_pressure_duty
 
 SCHEMA="ptxflex.F3_frozen_2023_E_delivered_hourly_matched_IDEAL_storage.v0.1"
 SOURCE_SHA={
@@ -330,20 +330,28 @@ def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4,
     }
 
 
-def run_original_pair(E_original,ES_original,output,*,time_limit_s=240):
+def run_original_pair(E_original,ES_original,output,*,time_limit_s=240,
+                      pressure_vessel_id=None,storage_mode="max_inventory"):
     destination=Path(output)
     if destination.exists():
         raise FileExistsError("will not overwrite source or previous original-pair results")
     a,b,target,cfgE,cfgES=load_matched_pilot(E_original,ES_original)
     runs={}
     for case,source,parameters in (("E",a,cfgE),("E_plus_S",b,cfgES)):
-        res=solve_ideal_storage(a["wind"],a["price"],target,parameters,time_limit_s=time_limit_s)
+        duty=(build_screened_pressure_duty(pressure_vessel_id,parameters["capacity_kg"],
+              capacity_semantics=storage_mode,
+              source_PEM_outlet_bar_absolute=parameters["source_bafu_PEM_pressure_bar"],
+              delivery_min_bar_absolute=parameters["source_pipeline_min_delivery_pressure_bar"])
+              if pressure_vessel_id is not None else None)
+        res=solve_ideal_storage(a["wind"],a["price"],target,parameters,
+                                time_limit_s=time_limit_s,pressure_duty=duty)
         if not res["solver_optimal"] or res["mip_relative_gap"] is None or res["mip_relative_gap"]>1e-6:
             raise SourceLockedDispatchError("matched-service ideal comparison has not reached certified 1e-6 MILP gap for "+case)
         runs[case]={
          "source_archive_sha256":source["registered_sha"],
          "source_stage_b_sha256":source["stage_b_sha"],
          "plant_model":parameters,
+         "pressure_vessel_screen":vars(duty) if duty is not None else None,
          "solver_metadata":{k:v for k,v in res.items() if k not in ("hourly_solved_states","modelled_hourly_delivered_kg","derived_audit")},
          "audited_annual":res["derived_audit"],
          "hours":res["hourly_solved_states"]
@@ -361,6 +369,10 @@ def run_original_pair(E_original,ES_original,output,*,time_limit_s=240):
       "pilot_operational_service_parity":True,
       "source_full_demand_served_in_original":False,
       "pressure_resolved_operational_equivalence":False,
+      "source_based_pressure_EOS_heel_and_RVO_compression_screen":pressure_vessel_id is not None,
+      "screened_vessel_id":pressure_vessel_id,
+      "original_source_storage_definition":storage_mode,
+      "fixed_upper_bank_pressure_charge_work_not_actual_dynamic_compressor":pressure_vessel_id is not None,
       "incremental_storage_vessel_BOM_included":False,
       "compressor_energy_and_losses_included":False,
       "native_full_BAFU_product_LCA_included":False,
@@ -378,8 +390,11 @@ if __name__=="__main__":
     parser.add_argument("--ES",required=True)
     parser.add_argument("--output",required=True)
     parser.add_argument("--time-limit",type=float,default=240)
+    parser.add_argument("--pressure-vessel-id",choices=("I_30bar","I_200bar","II_350bar","III_350bar","IV_350bar"))
+    parser.add_argument("--storage-mode",choices=("max_inventory","usable_service"),default="max_inventory")
     opts=parser.parse_args()
-    result=run_original_pair(opts.E,opts.ES,opts.output,time_limit_s=opts.time_limit)
+    result=run_original_pair(opts.E,opts.ES,opts.output,time_limit_s=opts.time_limit,
+              pressure_vessel_id=opts.pressure_vessel_id,storage_mode=opts.storage_mode)
     for case in ("E","E_plus_S"):
         print(case,json.dumps(result[case]["audited_annual"],sort_keys=True))
     print("matched original E-delivered hourly service, ideal storage only; NOT complete matched plant LCA")
