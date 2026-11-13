@@ -288,7 +288,11 @@ def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4):
       "grid_import_mwh":float(np.sum(np.maximum(g,0))),
       "grid_export_mwh":float(np.sum(np.maximum(-g,0))),
       "electrolyser_energy_mwh":float(np.sum(p)),
-      "wind_used_mwh":float(np.sum(wind-cur)),
+      "wind_noncurtailed_including_grid_export_mwh":float(np.sum(wind-cur)),
+      "wind_consumed_for_electrolysis_mwh":float(np.sum(p-np.maximum(g,0))),
+      "wind_exported_mwh":float(np.sum(np.maximum(-g,0))),
+      "independent_annual_renewable_plus_grid_energy_closure_mwh":float(
+          np.sum(p-np.maximum(g,0))+np.sum(np.maximum(g,0))-np.sum(p)),
       "max_storage_state_kg":float(np.max(s)),
       "max_charge_kg_h":float(np.max(ch)),
       "max_discharge_kg_h":float(np.max(dis)),
