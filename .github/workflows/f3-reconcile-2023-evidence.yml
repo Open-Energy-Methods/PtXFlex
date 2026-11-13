@@ -9,6 +9,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   independent_modelled_h2_adequacy_reconciliation:
     runs-on: ubuntu-latest
