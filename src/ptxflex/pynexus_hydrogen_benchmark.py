@@ -112,7 +112,7 @@ def _recompute(rows, record):
         "annual_net_wholesale_settlement_eur":0.0, "online_hours":0,
         "annual_curtailment_mwh":0.0, "annual_wind_available_mwh":0.0,
     }
-    hourly_prices = []
+    hourly_prices, hourly_wind_available, hourly_demand = [], [], []
     for r in rows:
         v = {k: float(r[k]) for k in COLS}
         if not all(math.isfinite(value) for value in v.values()):
@@ -145,6 +145,8 @@ def _recompute(rows, record):
             v["grid_import_mw"]-v["grid_export_mw"])*v["electricity_price"]
         totals["online_hours"] += int(v["online_status"])
         hourly_prices.append(v["electricity_price"])
+        hourly_wind_available.append(v["wind_available_mw"])
+        hourly_demand.append(v["h2_demand_kg_h"])
     m = record["metrics"]
     for key, metric in (
         ("annual_produced_h2_kg","h2_produced_kg"),
@@ -162,6 +164,8 @@ def _recompute(rows, record):
     totals["first_price_eur_mwh"] = hourly_prices[0]
     totals["last_price_eur_mwh"] = hourly_prices[-1]
     totals["price_series_sha256"] = sha(json.dumps(hourly_prices, separators=(",",":")).encode())
+    totals["original_wind_available_series_sha256"] = sha(json.dumps(hourly_wind_available,separators=(",",":")).encode())
+    totals["original_hourly_demand_series_sha256"] = sha(json.dumps(hourly_demand,separators=(",",":")).encode())
     return totals
 
 
@@ -179,6 +183,8 @@ def compare_archives(e, es):
         "delta_delivered_h2_kg":b["annual_delivered_h2_kg"]-a["annual_delivered_h2_kg"],
         "delta_net_wholesale_settlement_eur":(
             b["annual_net_wholesale_settlement_eur"]-a["annual_net_wholesale_settlement_eur"]),
+        "same_2023_wind_availability_series":a["original_wind_available_series_sha256"]==b["original_wind_available_series_sha256"],
+        "same_original_hourly_H2_demand_series":a["original_hourly_demand_series_sha256"]==b["original_hourly_demand_series_sha256"],
         "comparison_limit":"different H2 delivered; NOT matched-service or standalone LCOH",
     }
 
