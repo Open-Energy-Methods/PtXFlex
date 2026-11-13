@@ -65,6 +65,11 @@ jobs:
             --output outputs/F3_2023_reconciled_research_evidence.json
           sha256sum outputs/F3_2023_reconciled_research_evidence.json
           python - <<'PY'
+          import base64, pathlib
+          p=pathlib.Path("outputs/F3_2023_reconciled_research_evidence.json")
+          print("DERIVED_RECONCILED_JSON_BASE64="+base64.b64encode(p.read_bytes()).decode("ascii"))
+          PY
+          python - <<'PY'
           import json
           x=json.load(open("outputs/F3_2023_reconciled_research_evidence.json"))
           assert x["source_original_E_zip_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
