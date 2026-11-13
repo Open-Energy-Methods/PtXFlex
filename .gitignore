@@ -6,3 +6,12 @@ outputs/
 .env
 *.db
 *.sqlite
+
+# Original regulated/provider weather, energy-market and licensed BAFU source bytes
+original_PyNEXUS_*_2023.zip
+original_2023_NL_ENTSOE_A44_XML.zip
+PRIVATE_original_2023_source_provenance.json
+private-source-escrow/
+*.zolca
+*.spold
+*.ecospold
