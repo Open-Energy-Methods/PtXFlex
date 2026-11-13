@@ -26,7 +26,8 @@ DIM=9
 SCHEMA="ptxflex.F3_frozen_2023_real_gas_pressure_adequacy_StageA.v0.1"
 
 
-def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
+def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300,
+                          continuous_relaxation_only=False):
     wind=np.asarray(wind,dtype=float)
     price=np.asarray(price,dtype=float)
     target=np.asarray(target,dtype=float)
@@ -83,6 +84,11 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
             add({idx(t-1,P):1,idx(t,P):-1},-np.inf,ramp)
     add({idx(n-1,S):1},params["terminal_kg"],params["terminal_kg"])
     A=coo_matrix((vv,(rr,cc)),shape=(len(lo),n*DIM)).tocsr()
+    if continuous_relaxation_only:
+        # Relax ON/OFF and exclusive-store binary variables to [0,1].
+        # LP minimum unserved H2 is an optimistic LOWER bound for the MILP,
+        # never an executable dispatch or proof of physical feasibility.
+        integral[:]=0
     result=milp(c=cost,integrality=integral,
         bounds=Bounds(lower,upper),
         constraints=LinearConstraint(A,np.asarray(lo),np.asarray(hi)),
@@ -98,6 +104,37 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
     if np.min(shortage)<-1e-5 or np.max(shortage-target)>1e-5:
         raise SourceLockedDispatchError("invalid shortfall variable")
     actual=target-shortage
+    if continuous_relaxation_only:
+        if result.status!=0:
+            raise SourceLockedDispatchError("continuous LP adequacy bound not proven optimal")
+        prev=np.r_[params["initial_kg"],x[:-1,S]]
+        checks={
+          "electricity_MW":float(np.max(np.abs(wind+x[:,G]-x[:,P]-duty.compressor_mw_per_kg_h()*x[:,CH]-x[:,C]))),
+          "H2_target_kg_h":float(np.max(np.abs(params["h2_coefficient_kg_mwh"]*x[:,P]-x[:,CH]+x[:,DIS]+shortage-target))),
+          "H2_stock_kg":float(np.max(np.abs(x[:,S]-(1-loss)*prev-x[:,CH]+x[:,DIS]+fixed_heel_leak))),
+          "source_terminal_kg":float(abs(x[-1,S]-params["terminal_kg"])),
+        }
+        if max(checks.values())>2e-4:
+            raise SourceLockedDispatchError("continuous LP H2/energy/source-hour independent residual failed")
+        pressure=audit_gas_pressure_boundaries(duty,x[:,S])
+        return {
+           "source_case_stage":"Optimistic linear-programming RELAXATION bound only",
+           "LP_relaxation_of_integer_min_shortfall":True,
+           "integer_commitment_and_storage_exclusivity_not_enforced":True,
+           "solver_optimal":True,
+           "solver_gap":0.0,
+           "solver_best_bound_unserved_kg":float(result.fun),
+           "additional_shortfall_kg":float(np.sum(shortage)),
+           "lower_bound_on_true_MILP_additional_shortfall_kg":float(result.fun),
+           "original_E_delivered_reference_target_kg":float(target.sum()),
+           "non_operational_relaxed_modelled_H2_output_kg":float(actual.sum()),
+           "engineering_duty":asdict(duty),
+           "LP_source_equation_residuals":checks,
+           "LP_pressure_EOS_bounds":pressure,
+           "screening_only_no_full_contract_or_LCA":True,
+           "not_a_physically_executable_dispatch_solution":True,
+           "additional_shortfall_by_hour_kg":shortage.tolist()
+        }
     # Source-independent physical/economic identities from existing F3 audit.
     audit=independently_audit(x[:,:8],wind,price,actual,params,
        source_cost=float(np.dot(x[:,G],price)),pressure_duty=duty)
@@ -127,7 +164,8 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
 
 
 def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit_seconds=300,
-                                     selected_modes=None,selected_cases=None):
+                                     selected_modes=None,selected_cases=None,
+                                     continuous_relaxation_only=False):
     a,b,target,pa,pb=load_matched_pilot(E_original,ES_original)
     folder=Path(out_directory)
     if folder.exists():
@@ -161,10 +199,13 @@ def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit
                 delivery_min_bar_absolute=params["source_pipeline_min_delivery_pressure_bar"])
             try:
                 r=minimum_new_shortfall(a["wind"],a["price"],target,params,duty,
-                                        limit_seconds=limit_seconds)
+                                        limit_seconds=limit_seconds,
+                                        continuous_relaxation_only=continuous_relaxation_only)
                 short=r.pop("additional_shortfall_by_hour_kg")
                 summary["scenario_results"][mode][case]={
-                  "status":("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL"
+                  "status":("VERIFIED_LP_OPTIMISTIC_LOWER_BOUND_NOT_OPERABLE"
+                            if continuous_relaxation_only else
+                            "VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL"
                             if r["solver_optimal"]
                             else "FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM"),**r}
                 fname=mode+"_"+case+"_hourly_additional_shortfall.json"
@@ -192,6 +233,8 @@ if __name__=="__main__":
     p.add_argument("--time-limit",type=float,default=300)
     p.add_argument("--mode",choices=("max_inventory","usable_service"),action="append")
     p.add_argument("--case",choices=("E","E_plus_S"),action="append")
+    p.add_argument("--continuous-LP-lower-bound-only",action="store_true")
     args=p.parse_args()
     source_annual_pressure_adequacy(args.E,args.ES,args.output,limit_seconds=args.time_limit,
-         selected_modes=args.mode,selected_cases=args.case)
+         selected_modes=args.mode,selected_cases=args.case,
+         continuous_relaxation_only=args.continuous_LP_lower_bound_only)
