@@ -86,7 +86,10 @@ def source_hourly_backup_envelope(cert,trace,mode):
     expected_sha=r.get("hourly_evidence_sha256")
     if not isinstance(expected_sha,str) or len(expected_sha)!=64:
         raise BackupEnvelopeError("missing upstream content-addressed source-hourly trace")
-    canonical=(json.dumps(trace,sort_keys=True,allow_nan=False,separators=(",",":"))+"\n").encode("utf-8")
+    try:
+        canonical=(json.dumps(trace,sort_keys=True,allow_nan=False,separators=(",",":"))+"\n").encode("utf-8")
+    except (ValueError,TypeError) as exc:
+        raise BackupEnvelopeError("source-hourly trace contains nonfinite or non-JSON values") from exc
     if hashlib.sha256(canonical).hexdigest()!=expected_sha:
         raise BackupEnvelopeError("source-hourly shortage trace SHA256 mismatch; temporal sequence tampered")
     values=trace.get("hourly_additional_shortfall_kg")
