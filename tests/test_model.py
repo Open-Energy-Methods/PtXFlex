@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import pytest
@@ -47,3 +48,10 @@ def test_non_synthetic_not_misrepresented(scenario):
 
 def test_footprint_is_not_a_lca(scenario):
     assert "NOT process/LCA validation" in solve(scenario)["claim"]
+
+
+def test_solver_result_has_reproducible_input_hash(scenario):
+    expected = hashlib.sha256(json.dumps(scenario, sort_keys=True).encode()).hexdigest()
+    first = solve(scenario)
+    assert first["input_sha256"] == expected
+    assert solve(scenario)["input_sha256"] == first["input_sha256"]
