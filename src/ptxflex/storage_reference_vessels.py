@@ -37,17 +37,19 @@ class SourceVessel:
     internal_volume_m3: float
     empty_vessel_mass_kg: float
     publication_h2_at_rated_kg: float
+    single_container_source_footprint_m2: float
+    vessels_per_source_container: int=25
     original_source_doi: str=REFERENCE_DOI
     source_locator: str=REFERENCE_LOCATOR
 
 
 # Direct published per-vessel reference values, NOT H2-to-steel mass factors.
 PUBLISHED_VESSELS={
- "I_30bar":SourceVessel("I_30bar","Type I steel",30.,2.1,2300.,5.),
- "I_200bar":SourceVessel("I_200bar","Type I steel",200.,1.8,2400.,26.),
- "II_350bar":SourceVessel("II_350bar","Type II steel+composite",350.,1.3,2150.,31.),
- "III_350bar":SourceVessel("III_350bar","Type III metallic liner+composite",350.,1.8,1300.,43.),
- "IV_350bar":SourceVessel("IV_350bar","Type IV polymer liner+composite",350.,1.8,1200.,43.),
+ "I_30bar":SourceVessel("I_30bar","Type I steel",30.,2.1,2300.,5.,273.),
+ "I_200bar":SourceVessel("I_200bar","Type I steel",200.,1.8,2400.,26.,346.),
+ "II_350bar":SourceVessel("II_350bar","Type II steel+composite",350.,1.3,2150.,31.,208.),
+ "III_350bar":SourceVessel("III_350bar","Type III metallic liner+composite",350.,1.8,1300.,43.,208.),
+ "IV_350bar":SourceVessel("IV_350bar","Type IV polymer liner+composite",350.,1.8,1200.,43.,208.),
 }
 
 @dataclass(frozen=True)
@@ -69,6 +71,11 @@ class VesselBankScreen:
     empty_reference_vessels_total_kg:float
     representative_internal_free_volume_total_m3:float
     published_reference_nominal_kg_h2_per_vessel:float
+    source_vessels_per_container:int
+    minimum_source_reference_container_count:int
+    unused_reference_positions_if_partial_containers_allowed:int
+    published_single_container_reference_footprint_m2:float
+    actual_site_layout_and_aggregate_area_verified:bool
     actual_usable_below_model_nominal_capacity:bool
     supports_and_compressor_mass_known:bool
     vessels_are_certified_for_this_duty:bool
@@ -120,6 +127,12 @@ def screen_vessel_bank(vessel_id,original_model_capacity_kg,lower_pressure_bar_a
        empty_reference_vessels_total_kg=n*source.empty_vessel_mass_kg,
        representative_internal_free_volume_total_m3=n*source.internal_volume_m3,
        published_reference_nominal_kg_h2_per_vessel=source.publication_h2_at_rated_kg,
+       source_vessels_per_container=source.vessels_per_source_container,
+       minimum_source_reference_container_count=math.ceil(n/source.vessels_per_source_container),
+       unused_reference_positions_if_partial_containers_allowed=(
+           math.ceil(n/source.vessels_per_source_container)*source.vessels_per_source_container-n),
+       published_single_container_reference_footprint_m2=source.single_container_source_footprint_m2,
+       actual_site_layout_and_aggregate_area_verified=False,
        actual_usable_below_model_nominal_capacity=(working<amount),
        supports_and_compressor_mass_known=False,
        vessels_are_certified_for_this_duty=False,
@@ -129,6 +142,7 @@ def screen_vessel_bank(vessel_id,original_model_capacity_kg,lower_pressure_bar_a
          "Original model capacity is upper storage-state kg, not recoverable H2 or equipment mass.",
          "Published pressure basis (gauge or absolute) not explicitly reconciled; absolute assumed for screening.",
          "No support/manifold/valve/piping, compressor/cooling hardware mass, plant transport or fabrication inventory.",
+         "Paper's per-container footprint is for a source layout only; multiplying by minimum containers is NOT a safe site plan.",
          "No ASME/EN/ISO vessel conformity, fatigue, rupture, H2 embrittlement or site approval.",
          "No pressure transient, temperature swing, measured leakage or variable-efficiency motor map."),
     )
