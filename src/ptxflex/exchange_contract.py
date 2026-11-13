@@ -20,6 +20,11 @@ KNOWN_2023_ORIGINAL={
     "E":"069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051",
     "E_plus_S":"cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9",
 }
+KNOWN_2023_INPUT_SHA256={
+    "market_price_input_sha256":"2dfea4651fce314893201e7b08a4ae0ad24deef6b69ef85d81d9f54428f95bb2",
+    "wind_available_input_sha256":"a1c1443c49fa700d57038e008abd99f89c85d87e56a0fbd6141af37215e25520",
+    "hourly_demand_input_sha256":"1d35b2a2091a14998c3936819dac4edac0675319bd5b63553944c61a41943cd4",
+}
 NATIVE_METHOD="IPCC 2021"
 NATIVE_CATEGORY="IPCC 2021 GWP 100"
 
@@ -66,6 +71,10 @@ def validate_exchange(data):
             fail("known 2023 historical source archive SHA mismatch")
         if src["source_year"]!=2023 or src["hour_count"]!=8760:
             fail("original 2023 NL source must have exactly 8760 hours")
+        if scenario in KNOWN_2023_ORIGINAL:
+            for name,pinned in KNOWN_2023_INPUT_SHA256.items():
+                if src[name]!=pinned:
+                    fail("verified frozen PyNEXUS 2023 price/weather/demand series SHA mismatch: "+name)
     if data["evidence_status"]=="external_plant_validated" and not claims["industrial_validation"]:
         fail("external plant validation requires independent measurements and evidence")
     if claims["industrial_validation"] and data["evidence_status"]!="external_plant_validated":
