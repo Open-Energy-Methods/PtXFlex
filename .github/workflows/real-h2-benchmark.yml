@@ -1,0 +1,78 @@
+name: F1 — frozen 2023 H2 E/E+S benchmark with 17520 actual hourly records
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - '.github/workflows/real-h2-benchmark.yml'
+      - 'src/ptxflex/pynexus_hydrogen_benchmark.py'
+      - 'tests/test_research_gates_v1.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-original-H2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Download exact original frozen PyNEXUS WP5 scenario archives
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/pynexus_origin outputs/F1_source_only
+          for entry in "12612294862 E.zip" "12613045475 EplusS.zip"; do
+            set -- $entry
+            curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/abhijith-sivaprasadan/PyNEXUS/actions/artifacts/$1/zip" \
+              -o "/tmp/pynexus_origin/$2"
+          done
+      - name: Independently reconstruct all 17,520 original Stage B electricity and hydrogen balances
+        run: |
+          python -m ptxflex.pynexus_hydrogen_benchmark \
+            --E /tmp/pynexus_origin/E.zip \
+            --ES /tmp/pynexus_origin/EplusS.zip \
+            --output outputs/F1_source_only/original_2023_E_EplusS_audited_summary.json
+      - name: Independent published source-summary checks and no false matched-service assertion
+        run: |
+          python - <<'PY'
+          import json,math,pathlib
+          p=pathlib.Path('outputs/F1_source_only/original_2023_E_EplusS_audited_summary.json')
+          d=json.loads(p.read_text())
+          assert d['E']['archive_sha256']=='069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051'
+          assert d['E_plus_S']['archive_sha256']=='cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9'
+          assert d['E']['stage_b_sha256']=='a029a1049641d06afaea9703a7ec5abd5a41994fc0874a93be15348a17efe999'
+          assert d['E_plus_S']['stage_b_sha256']=='afd35107100dac5fba4f3b3bbaca65fe1631c61db002cb6cd0731225040d8d4b'
+          assert d['E']['price_series_sha256']==d['E_plus_S']['price_series_sha256']
+          for case,delivered,grid_settlement in [
+              ('E',16335279.317376737,25748968.928416774),
+              ('E_plus_S',16679072.08788669,27508060.360551137)
+          ]:
+              x=d[case]
+              assert math.isclose(x['annual_delivered_h2_kg'],delivered,abs_tol=.002)
+              assert math.isclose(x['annual_net_wholesale_settlement_eur'],grid_settlement,abs_tol=.002)
+              assert math.isclose(x['annual_demand_h2_kg'],18250000,abs_tol=.001)
+              assert 0 < x['annual_unserved_h2_kg'] < x['annual_demand_h2_kg']
+              assert x['storage_capacity_kg'] in (20000,40000)
+              print(case,'wind array hash',x['original_wind_available_series_sha256'])
+              print(case,'hourly H2 demand hash',x['original_hourly_demand_series_sha256'])
+          assert d['matched_service'] is False
+          assert d['original_unmet_demand_nonzero'] is True
+          assert d['original_historical_data_archived_permanently'] is False
+          print('same original wind sequence:',d['same_2023_wind_availability_series'])
+          print('same original hourly demand:',d['same_original_hourly_H2_demand_series'])
+          print('F1 original 2023 benchmark source audit PASS (not new optimization)')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F1-real-original-2023-E-EplusS-17520-hours-audit-derived-summary-only
+          path: outputs/F1_source_only/
+          if-no-files-found: error
+          retention-days: 90
