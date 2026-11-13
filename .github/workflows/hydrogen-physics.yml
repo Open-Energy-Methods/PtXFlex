@@ -5,7 +5,9 @@ on:
     paths:
       - '.github/workflows/hydrogen-physics.yml'
       - 'src/ptxflex/hydrogen_physics.py'
+      - 'src/ptxflex/storage_reference_vessels.py'
       - 'tests/test_hydrogen_physics_f2.py'
+      - 'tests/test_storage_reference_vessels.py'
       - 'pyproject.toml'
   workflow_dispatch:
 permissions:
@@ -22,7 +24,7 @@ jobs:
       - name: Pin source EOS version and science test dependencies
         run: python -m pip install -e '.[dev,physics]'
       - name: Test real-gas density, working volume and thermodynamic compressor physics
-        run: python -m pytest -v tests/test_hydrogen_physics_f2.py
+        run: python -m pytest -v tests/test_hydrogen_physics_f2.py tests/test_storage_reference_vessels.py
       - name: Record source library version and labelled research-screening (NOT vessel design) calculations
         run: |
           mkdir -p outputs/F2_eos_screen
@@ -54,6 +56,13 @@ jobs:
           print("physically calculated SCREENING scenarios",len(rows))
           print("CoolProp version",require_coolprop())
           print("No hydrogen-vessel material masses or process LCA derived")
+          from ptxflex.storage_reference_vessels import make_source_based_sensitivity
+          research=make_source_based_sensitivity()
+          assert len(research["cases"])==20
+          vessel=Path("outputs/F2_eos_screen/source_published_vessel_bank_sensitivity.json")
+          vessel.write_text(json.dumps(research,indent=2,sort_keys=True,allow_nan=False)+"\n")
+          print("Source Table 2 vessel reference bank + real-gas heel screening:",len(research["cases"]))
+          print("Not valid for certified design or complete manufacturing LCIA")
           PY
       - uses: actions/upload-artifact@v4
         with:
