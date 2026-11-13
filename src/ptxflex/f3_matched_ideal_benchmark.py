@@ -38,7 +38,7 @@ from .pynexus_hydrogen_benchmark import load_archive
 SCHEMA="ptxflex.F3_frozen_2023_E_delivered_hourly_matched_IDEAL_storage.v0.1"
 SOURCE_SHA={
  "E":"069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051",
- "E_plus_S":"cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+ "E+S":"cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
 }
 P,U,G,C,S,CH,DIS,Z=range(8)
 DIM=8
@@ -124,7 +124,7 @@ def _source_physical_parameters(obj):
 
 def load_matched_pilot(E_original,ES_original):
     a,b=_read_original(E_original),_read_original(ES_original)
-    if a["scenario"]!="E" or b["scenario"]!="E_plus_S":
+    if a["scenario"]!="E" or b["scenario"]!="E+S":
         raise SourceLockedDispatchError("require frozen E and E+S archives")
     _same_history(a,b)
     pE,pES=_source_physical_parameters(a),_source_physical_parameters(b)
