@@ -129,8 +129,12 @@ E and E+S systems are **not equal-delivery configurations**, despite the
 E+S full E-reference service being feasible. Do not compare their wholesale
 settlement, full LCOH or complete life-cycle GWP directly.
 
-A six-artifact SHA-verified reconciliation workflow has been added at
-[`f3-reconcile-2023-evidence.yml`](../.github/workflows/f3-reconcile-2023-evidence.yml).
+The six-artifact SHA-verified reconciliation workflow
+[`f3-reconcile-2023-evidence.yml`](../.github/workflows/f3-reconcile-2023-evidence.yml)
+[completed successfully](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43526250517).
+Its source-derived result is committed as
+[`data/results/F3_2023_reconciled_research_evidence.json`](../data/results/F3_2023_reconciled_research_evidence.json)
+with registered SHA-256 `5dead18cfa0c3fecf15562f423e01044bcc6ad4ba4f5212dfb44a010b0d1a0d3`.
 The upstream GitHub Actions artifact ZIPs are retained for 90 days; the
 original PyNEXUS source archives still have a separate preservation deadline.
 An independently reviewed long-term private escrow remains a P0 release gate.
