@@ -1,0 +1,86 @@
+name: F3 — reconciled source-verified 2023 H2 adequacy evidence
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3_reconciled_evidence.py'
+      - 'tests/test_f3_reconciled_evidence.py'
+      - '.github/workflows/f3-reconcile-2023-evidence.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  independent_modelled_h2_adequacy_reconciliation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Pure mathematical negative tests before real source intake
+        run: python -m pytest -q tests/test_f3_reconciled_evidence.py
+      - name: Retrieve six official previous full-year 2023 evidence artifacts with independently registered archive digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/f3_evidence
+          download() {
+            local id="$1" digest="$2" key="$3"
+            curl --fail --location --retry 3 --retry-all-errors \
+              --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/Open-Energy-Methods/PtXFlex/actions/artifacts/$id/zip" \
+              -o "/tmp/f3_evidence/$key.zip"
+            echo "$digest  /tmp/f3_evidence/$key.zip" | sha256sum --check --status
+            mkdir -p "/tmp/f3_evidence/$key"
+            unzip -q "/tmp/f3_evidence/$key.zip" -d "/tmp/f3_evidence/$key"
+          }
+          # Four Stage A source-based solver/certification jobs, Actions run 43524738270.
+          download 14084348674 6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8 max_inventory_E
+          download 14085465040 483b1977536cc375393a2515c0a6e0bec91989dafba2bb787f6c3433e6ee1210 max_inventory_E_plus_S
+          download 14084937031 18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd usable_service_E
+          download 14083933609 e0c4df35bc76fac91517e7fa30d5ac212648c3e876e218668ce26ceb6298b55d usable_service_E_plus_S
+          # Two independently audited zero-shortfall 40t full-service witnesses, run 43525385492.
+          download 14085330505 6eb67570397c653f6904e92842367c56ea505494ae57b2231881d74ddb29068f max_inventory_witness
+          download 14085135699 849a2c5efa75d00d39cd9adbee83157ff56c8f204bdf7371c5b35639402ed189 usable_service_witness
+          echo 'All six original derived evidence artifact ZIP digests verified before interpretation.'
+      - name: Independently reconcile source, pressure, MILP dual bounds and verified zero-shortfall E+S witnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ptxflex.f3_reconciled_evidence \
+            --stageA-max_inventory-E /tmp/f3_evidence/max_inventory_E/stageA_additional_shortfall_certified_interval.json \
+            --stageA-max_inventory-E_plus_S /tmp/f3_evidence/max_inventory_E_plus_S/stageA_additional_shortfall_certified_interval.json \
+            --stageA-usable_service-E /tmp/f3_evidence/usable_service_E/stageA_additional_shortfall_certified_interval.json \
+            --stageA-usable_service-E_plus_S /tmp/f3_evidence/usable_service_E_plus_S/stageA_additional_shortfall_certified_interval.json \
+            --witness-max_inventory /tmp/f3_evidence/max_inventory_witness/F3_2023_source_full_service_witness_max_inventory.json \
+            --witness-usable_service /tmp/f3_evidence/usable_service_witness/F3_2023_source_full_service_witness_usable_service.json \
+            --output outputs/F3_2023_reconciled_research_evidence.json
+          sha256sum outputs/F3_2023_reconciled_research_evidence.json
+          python - <<'PY'
+          import json
+          x=json.load(open("outputs/F3_2023_reconciled_research_evidence.json"))
+          assert x["source_original_E_zip_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert x["matched_service_E_vs_EplusS_LCA_or_TEA_comparison_eligible"] is False
+          assert not x["full_system_native_BAFU_GWP_or_TEA_available"]
+          for mode,y in x["modes"].items():
+              e=y["cases"]["E"];es=y["cases"]["E_plus_S"]
+              assert e["minimum_additional_modelled_H2_shortfall_lower_bound_kg"]>0
+              assert es["zero_shortfall_feasible_and_optimal_proven"]
+              assert es["minimum_additional_modelled_H2_shortfall_upper_bound_kg"]==0
+              assert not y["eligible_for_direct_20t_vs_40t_cost_or_GWP_comparison"]
+          print("PASS: scientifically reconciled original 2023 H2 pressure adequacy. Comparative LCA/TEA remains blocked.")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: F3-2023-6-input-source-verified-final-modelled-adequacy-NOT-full-LCA
+          path: outputs/F3_2023_reconciled_research_evidence.json
+          if-no-files-found: warn
+          retention-days: 90
