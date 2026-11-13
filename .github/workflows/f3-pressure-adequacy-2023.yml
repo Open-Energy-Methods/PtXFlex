@@ -65,8 +65,8 @@ jobs:
           assert d["original_full_2023_H2_demand_kg"]==18_250_000
           assert d["source_electricity_NL_A44_and_wind_ERA5_real_hydrogen_modelled"]
           assert not d["complete_installation_BOM_LCA_and_TEA"]
-          for mode in ("max_inventory","usable_service"):
-              for case,r in d["scenario_results"][mode].items():
+          for mode,scenarios in d["scenario_results"].items():
+              for case,r in scenarios.items():
                   assert r["status"] in ("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL","FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM","NOT_CERTIFIED")
                   if r["status"] in ("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL","FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM"):
                       if r["solver_optimal"]:
