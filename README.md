@@ -1,5 +1,7 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+**F2→F3 physical pressure correction (source-locked 2023):** the new [Type I 200bar real-gas EOS/313K + RVO two-stage compressor full-year study](docs/F3_2023_PHYSICAL_200BAR_FEASIBILITY_SOURCE_AUDIT.md) found the original **E 20t** bank *infeasible* for the original E hour-by-hour delivery target under either max-inventory or physically usable interpretation, while **E+S 40t** met that modelled service in both screens. The previous ideal €1.142m operating-savings result is **not** a valid physically matched cost or GWP comparison. It is a pressure and compressor *screen*, not a dynamic certified plant. [F3 Stage A minimum additional H₂ shortfall workflow](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43515507811) is the next scientific adequacy gate. Source unit/mass-matching to native BAFU remains incomplete.
+
 ### 13 November 2026: source-checked F2/F3 technical checkpoints
 
 **Physical source correction:** The frozen PyNEXUS 20/40 tonne limits are **maximum ideal H₂ inventory**, not guaranteed usable H₂; pressure-swing heel must be accounted for. [F2 source-studied vessel/EOS working-volume table](docs/F2_PUBLISHED_STORAGE_PRESSURE_SWING_AUDIT.md) and [25 passing physics tests](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43502681218) compare actual published Type I/II/III/IV example vessel dimensions/masses. These are screening candidates, not actual certified plant hardware.
