@@ -3,6 +3,8 @@
 Not a validated process simulator, bankable project or full life-cycle model.
 """
 from datetime import datetime, timedelta
+import hashlib
+import json
 import math
 
 import numpy as np
@@ -161,6 +163,7 @@ def solve(case, *, emissions_cap_kgco2e=None):
     output = {
         "schema_version":"ptxflex.result.v0.1",
         "scenario_id":case["scenario_id"], "source_kind":"synthetic",
+        "input_sha256":hashlib.sha256(json.dumps(case, sort_keys=True).encode()).hexdigest(),
         "solver":"SciPy MILP / HiGHS",
         "solver_status":int(result.status),
         "mip_relative_gap":float(getattr(result,"mip_gap",0.0)),
