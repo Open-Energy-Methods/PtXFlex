@@ -1,0 +1,63 @@
+name: F2 — source-library hydrogen EOS and compressor physics verification
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - '.github/workflows/hydrogen-physics.yml'
+      - 'src/ptxflex/hydrogen_physics.py'
+      - 'tests/test_hydrogen_physics_f2.py'
+      - 'pyproject.toml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  eos-and-thermodynamics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pin source EOS version and science test dependencies
+        run: python -m pip install -e '.[dev,physics]'
+      - name: Test real-gas density, working volume and thermodynamic compressor physics
+        run: python -m pytest -v tests/test_hydrogen_physics_f2.py
+      - name: Record source library version and labelled research-screening (NOT vessel design) calculations
+        run: |
+          mkdir -p outputs/F2_eos_screen
+          python - <<'PY'
+          from dataclasses import asdict
+          from pathlib import Path
+          import hashlib,json
+          from ptxflex.hydrogen_physics import usable_storage_volume,compression_work,require_coolprop
+          assert require_coolprop()=='8.0.0'
+          rows=[]
+          for pmax in (100.,200.,350.):
+              s=usable_storage_volume(20000.,30.,pmax,298.15)
+              c=compression_work(30.,pmax,298.15,.75,.94,2)
+              rows.append({"test_only_absolute_pressure_bar":pmax,
+                           "working_storage_from_pure_H2_EOS":asdict(s),
+                           "compression_from_source_library":asdict(c)})
+          doc={
+            "source_library":"CoolProp official pure hydrogen EOS",
+            "source_version":require_coolprop(),
+            "source_url":"https://coolprop.org/fluid_properties/fluids/Hydrogen.html",
+            "research_qa_scoping":"SCREENING OF SOURCE LIBRARY EQUATIONS ONLY; no chosen vessel/plant, equipment mass, source-calibrated efficiency, compressor motor map or full LCA",
+            "pressure_assumptions_are_test_only":True,
+            "source_2023_PyNEXUS_storage_pressures_known":False,
+            "cannot_release_complete_storage_LCA":True,
+            "diagnostic_rows":rows
+          }
+          path=Path("outputs/F2_eos_screen/source_library_pressure_sensitivity_only.json")
+          path.write_text(json.dumps(doc,indent=2,sort_keys=True,allow_nan=False)+"\n")
+          print("physically calculated SCREENING scenarios",len(rows))
+          print("CoolProp version",require_coolprop())
+          print("No hydrogen-vessel material masses or process LCA derived")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F2-CoolProp8-physical-H2-screening-not-vessel-design
+          path: outputs/F2_eos_screen/
+          retention-days: 90
+          if-no-files-found: error
