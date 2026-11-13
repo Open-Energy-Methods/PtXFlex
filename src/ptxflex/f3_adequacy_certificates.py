@@ -8,6 +8,7 @@ incumbent-only result is NOT a proven minimum. No cost/GWP conclusions follow.
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import math
 from pathlib import Path
@@ -115,7 +116,11 @@ def certify_stage_a(summary):
             # For a zero-shortfall incumbent the nonnegative-slack bound proves
             # optimality without relying on any solver-reported relative gap.
             zero_proven = short <= 1e-7 and lower <= short + BOUND_TOL_KG
+            trace_sha=r.get("hourly_evidence_sha256")
+            if not isinstance(trace_sha,str) or re.fullmatch(r"[0-9a-f]{64}",trace_sha) is None:
+                raise InvalidAdequacyCertificate("missing source-hourly evidence SHA256")
             result_cases[case] = {
+                "hourly_evidence_sha256":trace_sha,
                 "status": "PROVEN_MINIMUM" if certified or zero_proven else "BOUNDED_INCUMBENT_MINIMUM_UNPROVEN",
                 "original_solver_status": status,
                 "shortfall_lower_bound_kg": min(lower, short),
