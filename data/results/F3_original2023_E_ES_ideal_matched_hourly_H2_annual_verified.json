@@ -42,7 +42,7 @@
       "original_year_grid_export_MWh": 36320.06637673995,
       "plant_storage_state_max_kg": 20000,
       "hourly_conservation_and_bounds_passed": true,
-      "numerical_relative_MIP_gap_below_1e6": true
+      "solver_relative_gap_below_one_part_per_million": true
     },
     "E_plus_S": {
       "annual_net_wholesale_grid_settlement_eur2023": 24606993.563688386,
@@ -56,7 +56,7 @@
       "original_year_grid_export_MWh": 24331.099861950883,
       "plant_storage_state_max_kg": 40000,
       "hourly_conservation_and_bounds_passed": true,
-      "numerical_relative_MIP_gap_below_1e6": true
+      "solver_relative_gap_below_one_part_per_million": true
     }
   },
   "comparison": {
