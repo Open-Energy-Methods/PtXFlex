@@ -1,13 +1,3 @@
-"""PtXFlex original-PyNEXUS E/E+S benchmark reproducer.
-
-Source adaptation of the already independent-of-the-PyNEXUS-solver original
-archive auditor in PtXLens. Identical scientific checks are retained so these
-two repositories parse the original model the same way, rather than silently
-changing the reference. This is an independent reconstruction FROM original
-Stage B records, not an independent different numerical method to validate the
-technology. No new physical storage/compression behavior is asserted.
-"""
-
 """Audit *observed-price* frozen PyNEXUS WP5 ZIPs, not earlier synthetic-price demo.
 
 All calculations use original hourly Stage B records and independently check
@@ -15,6 +5,9 @@ the upstream recorded summary and its SHA256 statements. No solver re-run and
 no claim of validated grid-carbon, plant economics, or real hydrogen production.
 """
 from __future__ import annotations
+
+# Audit adapted from PtXLens original-source checker; independent of frozen
+# PyNEXUS numerical solver, not an independent industrial validation study.
 import csv
 import hashlib
 import io
