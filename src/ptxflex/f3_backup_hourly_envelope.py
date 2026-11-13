@@ -15,6 +15,7 @@ NOT proof that the minimum can be implemented as a physical backup.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -82,6 +83,12 @@ def source_hourly_backup_envelope(cert,trace,mode):
     if trace.get("derived_source_not_original_raw_prices_or_wind") is not True or trace.get(
             "source_E_delivered_reference_profile_is_modelled") is not True:
         raise BackupEnvelopeError("original hourly H2 modelled-source declaration missing")
+    expected_sha=r.get("hourly_evidence_sha256")
+    if not isinstance(expected_sha,str) or len(expected_sha)!=64:
+        raise BackupEnvelopeError("missing upstream content-addressed source-hourly trace")
+    canonical=(json.dumps(trace,sort_keys=True,allow_nan=False,separators=(",",":"))+"\n").encode("utf-8")
+    if hashlib.sha256(canonical).hexdigest()!=expected_sha:
+        raise BackupEnvelopeError("source-hourly shortage trace SHA256 mismatch; temporal sequence tampered")
     values=trace.get("hourly_additional_shortfall_kg")
     if not isinstance(values,list) or len(values)!=8760:
         raise BackupEnvelopeError("original 2023 source hourly trace must be exactly 8760h")
@@ -110,6 +117,7 @@ def source_hourly_backup_envelope(cert,trace,mode):
       "source_pressure_screen_case":"E",
       "modelled_hydrogen_not_measured_plant_production":True,
       "source_8760_sequential_hourly_indices":True,
+      "source_hourly_trace_sha256":expected_sha,
       "stageA_original_MILP_min_shortage_certified_lower_bound_kg":lo,
       "stageA_original_feasible_dispatch_shortage_upper_bound_kg":hi,
       "single_incumbent_hypothetical_topup_annual_kg":float(np.sum(a)),
