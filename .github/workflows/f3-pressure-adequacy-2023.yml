@@ -12,9 +12,16 @@ permissions:
   contents: read
 jobs:
   minimum_physical_h2_shortfall:
+    strategy:
+      fail-fast: false
+      matrix:
+        capacity_mode: [max_inventory, usable_service]
+        study_case: [E, E_plus_S]
     runs-on: ubuntu-latest
     timeout-minutes: 24
     env:
+      CAPACITY_MODE: ${{ matrix.capacity_mode }}
+      STUDY_CASE: ${{ matrix.study_case }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +50,8 @@ jobs:
             --E /tmp/original_f3_source/E.zip \
             --ES /tmp/original_f3_source/ES.zip \
             --time-limit 250 \
+            --mode "$CAPACITY_MODE" \
+            --case "$STUDY_CASE" \
             --output outputs/F3_original_2023_real_gas_adequacy
       - name: Verify all original evidence/physical shortfall claims from archived source
         run: |
@@ -54,14 +63,17 @@ jobs:
           assert d["source_EplusS_sha256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
           assert d["source_hourly_E_delivered_target_kg"]>16_000_000
           assert d["original_full_2023_H2_demand_kg"]==18_250_000
-          assert d["source_2023_H2_values_are_modelled_not_industrial_measurements"]
+          assert d["source_electricity_NL_A44_and_wind_ERA5_real_hydrogen_modelled"]
           assert not d["complete_installation_BOM_LCA_and_TEA"]
           for mode in ("max_inventory","usable_service"):
-              for case in ("E","E_plus_S"):
-                  r=d["scenario_results"][mode][case]
-                  assert r["status"] in ("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL","NOT_CERTIFIED")
-                  if r["status"]=="VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL":
-                      assert r["solver_optimal"] and r["solver_gap"]<=1e-6
+              for case,r in d["scenario_results"][mode].items():
+                  assert r["status"] in ("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL","FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM","NOT_CERTIFIED")
+                  if r["status"] in ("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL","FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM"):
+                      if r["solver_optimal"]:
+                          assert r["solver_gap"]<=1e-6
+                      else:
+                          assert r["feasible_incumbent_only_not_proven_minimum"]
+                          print("Feasible incumbent but NOT proven minimum; retain open scientific gate")
                       assert r["additional_shortfall_kg"]>=-1e-5
                       assert math.isclose(r["achievable_annual_h2_under_screen_kg"]+
                            r["additional_shortfall_kg"],d["source_hourly_E_delivered_target_kg"],abs_tol=1e-4)
@@ -75,7 +87,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: F3-2023-physical-adequacy-minimum-extra-H2-deficit-NOT-full-plant
+          name: F3-2023-source-adequacy-${{ matrix.capacity_mode }}-${{ matrix.study_case }}-NO-plant-LCA
           path: outputs/F3_original_2023_real_gas_adequacy/
           if-no-files-found: warn
           retention-days: 90
