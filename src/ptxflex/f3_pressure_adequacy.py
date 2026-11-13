@@ -8,6 +8,7 @@ does not satisfy the original full 50t/day industrial demand.
 """
 from __future__ import annotations
 from dataclasses import asdict
+import hashlib
 import json
 from pathlib import Path
 import numpy as np
@@ -202,18 +203,23 @@ def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit
                                         limit_seconds=limit_seconds,
                                         continuous_relaxation_only=continuous_relaxation_only)
                 short=r.pop("additional_shortfall_by_hour_kg")
+                # Canonical SHA of the exact 8760h JSON trace, not merely annual sum.
+                trace_payload={
+                  "hourly_additional_shortfall_kg":short,
+                  "derived_source_not_original_raw_prices_or_wind":True,
+                  "source_E_delivered_reference_profile_is_modelled":True
+                }
+                trace_bytes=(json.dumps(trace_payload,sort_keys=True,allow_nan=False,separators=(",",":"))+"\n").encode("utf-8")
+                trace_sha=hashlib.sha256(trace_bytes).hexdigest()
                 summary["scenario_results"][mode][case]={
+                  "hourly_evidence_sha256":trace_sha,
                   "status":("VERIFIED_LP_OPTIMISTIC_LOWER_BOUND_NOT_OPERABLE"
                             if continuous_relaxation_only else
                             "VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL"
                             if r["solver_optimal"]
                             else "FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM"),**r}
                 fname=mode+"_"+case+"_hourly_additional_shortfall.json"
-                (folder/fname).write_text(json.dumps({
-                  "hourly_additional_shortfall_kg":short,
-                  "derived_source_not_original_raw_prices_or_wind":True,
-                  "source_E_delivered_reference_profile_is_modelled":True
-                },allow_nan=False)+"\n")
+                (folder/fname).write_bytes(trace_bytes)
                 summary["scenario_results"][mode][case]["hourly_evidence_file"]=fname
             except SourceLockedDispatchError as err:
                 summary["scenario_results"][mode][case]={
