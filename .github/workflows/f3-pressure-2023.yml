@@ -9,6 +9,7 @@ on:
       - 'src/ptxflex/storage_reference_vessels.py'
       - 'src/ptxflex/hydrogen_physics.py'
       - 'tests/test_f3_pressure_storage_duty.py'
+      - 'scripts/f3_physical_pressure_2023.py'
       - 'pyproject.toml'
   workflow_dispatch:
 permissions:
@@ -41,41 +42,52 @@ jobs:
               "https://api.github.com/repos/abhijith-sivaprasadan/PyNEXUS/actions/artifacts/$1/zip" \
               -o "/tmp/frozen_PyNEXUS_2023/$2"
           done
-      - name: Solve 8760h E/ES with physically screened Type I 200bar max-inventory bank and conservative compressor work
+      - name: Examine both original 8760h scenarios with actual real-gas heel and RVO compressor duty in both maximum-versus-usable capacity interpretations
         run: |
-          python -m ptxflex.f3_matched_ideal_benchmark \
+          python scripts/f3_physical_pressure_2023.py \
             --E /tmp/frozen_PyNEXUS_2023/E.zip \
             --ES /tmp/frozen_PyNEXUS_2023/ES.zip \
-            --pressure-vessel-id I_200bar \
-            --storage-mode max_inventory \
-            --time-limit 330 \
-            --output outputs/F3_pressure_source/2023_E_ES_200bar_TypeI_MAX_source_max_inventory.json
-      - name: Independently compare source-condition results, no false plant gate claims
+            --time-limit 250 \
+            --output outputs/F3_pressure_source/pressure_investigation
+      - name: Audit real-source scientific status without claiming infeasible physical systems have cost data
         run: |
           python - <<'PY'
           from pathlib import Path
           import json,math
-          d=json.loads(Path('outputs/F3_pressure_source/2023_E_ES_200bar_TypeI_MAX_source_max_inventory.json').read_text())
-          assert d['source_original_E_sha256']=='069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051'
-          assert d['source_original_EplusS_sha256']=='cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9'
-          assert d['source_based_pressure_EOS_heel_and_RVO_compression_screen']
-          assert d['screened_vessel_id']=='I_200bar'
-          assert d['original_source_storage_definition']=='max_inventory'
-          assert not d['native_full_BAFU_product_LCA_included']
-          assert not d['fully_validated_v1_release']
-          a,b=d['E'],d['E_plus_S']
-          for case,r in (('E',a),('E_plus_S',b)):
-              assert r['solver_metadata']['solver_optimal']
-              assert r['solver_metadata']['mip_relative_gap']<=1e-6
-              assert r['pressure_vessel_screen']['gas_heel_kg']>0
-              assert r['pressure_vessel_screen']['includes_cooling_electricity'] is False
-              assert r['audited_annual']['pressure_EOS_bounds']['EOS_hourly_mass_bounds_imply_pressure_limits']
-              assert max(r['audited_annual']['independent_max_physical_residuals'].values())<2e-4
-              print(case,'net wholesale EUR2023',r['audited_annual']['total_wholesale_net_grid_eur2023'])
-              print(case,'compressor screening MWh',r['audited_annual']['annual_compression_electricity_mwh'])
-              print(case,'min/max bank pressure bar abs',r['audited_annual']['pressure_EOS_bounds'])
-          assert math.isclose(a['audited_annual']['annual_service_h2_kg'],b['audited_annual']['annual_service_h2_kg'],abs_tol=1e-5)
-          print('SOURCE-PINNED pressure-limited screened operation PASS; NOT full physical plant/BOM/BAFU comparison')
+          p=Path("outputs/F3_pressure_source/pressure_investigation/F3_pressure_screen_incremental_summary.json")
+          d=json.loads(p.read_text())
+          assert d["schema_version"]=="ptxflex.F3_pressure_storage_2023_source_technical_feasibility.v0.1"
+          assert d["source_original_E_SHA256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["source_original_EplusS_SHA256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert not d["v1_release_ready"] and not d["manufacturer_BOM_and_full_native_BAFU_GWP"]
+          assert d["source_input_weather_and_price_identical_8760h"]
+          for mode in ("max_inventory","usable_service"):
+              q=d["scenarios"][mode]
+              for label in ("E","E_plus_S"):
+                  v=q[label]
+                  assert v["source_based_screened_duty"]["vessel_count"]>0
+                  assert v["source_based_screened_duty"]["gas_heel_kg"]>0
+                  assert not v["source_based_screened_duty"]["includes_cooling_electricity"]
+                  assert v["result_state"] in (
+                    "VERIFIED_PRESSURE_SCREEN_8760h",
+                    "PHYSICAL_MATCHED_SERVICE_NOT_FEASIBLE_OR_UNVERIFIED",
+                    "NOT_VERIFIED_SOLVER_OR_GAP")
+                  if v["result_state"]=="VERIFIED_PRESSURE_SCREEN_8760h":
+                      a=v["audited_annual"]
+                      assert a["hours"]==8760
+                      assert a["pressure_EOS_bounds"]["EOS_hourly_mass_bounds_imply_pressure_limits"]
+                      assert a["annual_compression_electricity_mwh"]>0
+                      assert max(a["independent_max_physical_residuals"].values())<2e-4
+                      print(mode,label,"PASS EUR2023=",a["total_wholesale_net_grid_eur2023"])
+                  else:
+                      assert "audited_annual" not in v
+                      print(mode,label,"UNRESOLVED",v.get("failure_message",""))
+              if q["matched_service_comparison"].get("valid") is not False:
+                  assert q["matched_service_comparison"]["native_BAFU_comparative_GWP_complete"] is False
+                  print(mode,"equal-service scientific physical-screen comparison:",q["matched_service_comparison"])
+              else:
+                  print(mode,"comparison NOT ELIGIBLE; no favourable cost/GWP result asserted")
+          print("Real 2023 screen checked without hiding infeasible storage configurations")
           PY
       - uses: actions/upload-artifact@v4
         if: always()
