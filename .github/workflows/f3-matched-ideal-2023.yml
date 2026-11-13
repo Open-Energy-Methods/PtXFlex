@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/f3-matched-ideal-2023.yml'
       - 'src/ptxflex/f3_matched_ideal_benchmark.py'
+      - 'src/ptxflex/pressure_storage_duty.py'
+      - 'src/ptxflex/hydrogen_physics.py'
+      - 'src/ptxflex/storage_reference_vessels.py'
+      - 'tests/test_f3_pressure_storage_duty.py'
       - 'tests/test_f3_matched_ideal_benchmark.py'
       - 'pyproject.toml'
   workflow_dispatch:
@@ -22,9 +26,9 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install pinned source-parsing and scientific verification dependencies
-        run: python -m pip install -e '.[dev,original-sources]'
+        run: python -m pip install -e '.[dev,original-sources,physics]'
       - name: Independently validate new MILP physical equations on deliberately TEST-ONLY mathematical scenarios
-        run: python -m pytest -v tests/test_f3_matched_ideal_benchmark.py
+        run: python -m pytest -v tests/test_f3_matched_ideal_benchmark.py tests/test_f3_pressure_storage_duty.py
       - name: Download precise ORIGINAL 2023 E and E+S PyNEXUS evidence, never generated synthetic 2023 samples
         run: |
           mkdir -p /tmp/frozen_pynexus_2023 outputs/F3_2023_pilot
