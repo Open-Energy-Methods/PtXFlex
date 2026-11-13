@@ -87,8 +87,12 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
         bounds=Bounds(lower,upper),
         constraints=LinearConstraint(A,np.asarray(lo),np.asarray(hi)),
         options={"time_limit":float(limit_seconds),"mip_rel_gap":1e-6})
-    if result.x is None or result.status!=0 or result.mip_gap is None or result.mip_gap>1e-6:
-        raise SourceLockedDispatchError("minimum-shortfall Stage A not certifiably solved: "+str(result.message))
+    if result.x is None:
+        raise SourceLockedDispatchError("No verified feasible Stage A incumbent: "+str(result.message))
+    gap=(float(result.mip_gap) if result.mip_gap is not None else None)
+    optimal=(result.status==0 and gap is not None and gap<=1e-6)
+    if result.status not in (0,1):
+        raise SourceLockedDispatchError("Stage A returned an invalid solver status: "+str(result.message))
     x=np.asarray(result.x,dtype=float).reshape((n,DIM))
     shortage=x[:,SHORT]
     if np.min(shortage)<-1e-5 or np.max(shortage-target)>1e-5:
@@ -103,8 +107,13 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
         raise SourceLockedDispatchError("source target/slack balance failed independent audit")
     return {
       "source_case_stage":"Minimize ADDITIONAL shortage against exact original E delivered 8760h service",
-      "solver_optimal":True,"solver_gap":float(result.mip_gap),
-      "solver_best_bound_unserved_kg":float(result.mip_dual_bound),
+      "solver_optimal":optimal,
+      "feasible_incumbent_only_not_proven_minimum":not optimal,
+      "solver_gap":gap,
+      "solver_status":int(result.status),
+      "solver_message":str(result.message),
+      "solver_best_bound_unserved_kg":float(result.mip_dual_bound)
+          if result.mip_dual_bound is not None else None,
       "additional_shortfall_kg":float(np.sum(shortage)),
       "shortfall_hour_count":int(np.count_nonzero(shortage>1e-5)),
       "maximum_single_hour_shortfall_kg":float(np.max(shortage)),
@@ -147,7 +156,9 @@ def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit
                                         limit_seconds=limit_seconds)
                 short=r.pop("additional_shortfall_by_hour_kg")
                 summary["scenario_results"][mode][case]={
-                  "status":"VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL",**r}
+                  "status":("VERIFIED_STAGE_A_MIN_ADDITIONAL_SOURCE_SHORTFALL"
+                            if r["solver_optimal"]
+                            else "FEASIBLE_INCUMBENT_NOT_PROVEN_MINIMUM"),**r}
                 fname=mode+"_"+case+"_hourly_additional_shortfall.json"
                 (folder/fname).write_text(json.dumps({
                   "hourly_additional_shortfall_kg":short,
