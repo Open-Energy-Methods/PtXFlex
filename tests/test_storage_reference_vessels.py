@@ -24,6 +24,19 @@ def test_published_table_is_direct_and_technology_specific():
     assert PUBLISHED_VESSELS["I_30bar"].max_reference_pressure_bar==30
 
 
+def test_actual_paper_container_grouping_does_not_invent_site_footprint():
+    ref=PUBLISHED_VESSELS["I_200bar"]
+    assert ref.vessels_per_source_container==25
+    assert ref.single_container_source_footprint_m2==346.
+    for cap in (20000.,40000.):
+        a=screen_vessel_bank("I_200bar",cap,20.,298.15)
+        assert a.minimum_source_reference_container_count==math.ceil(a.number_of_reference_vessels/25)
+        assert 0<=a.unused_reference_positions_if_partial_containers_allowed<25
+        assert a.source_vessels_per_container==25
+        assert a.published_single_container_reference_footprint_m2==346.
+        assert a.actual_site_layout_and_aggregate_area_verified is False
+
+
 def test_original_20t_maximum_inventory_is_not_20t_usable():
     a=screen_vessel_bank("I_200bar",20000,20,298.15)
     assert a.source_capacity_semantics=="max_inventory"
