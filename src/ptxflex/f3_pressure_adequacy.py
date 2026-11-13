@@ -126,7 +126,8 @@ def minimum_new_shortfall(wind,price,target,params,duty,*,limit_seconds=300):
     }
 
 
-def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit_seconds=300):
+def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit_seconds=300,
+                                     selected_modes=None,selected_cases=None):
     a,b,target,pa,pb=load_matched_pilot(E_original,ES_original)
     folder=Path(out_directory)
     if folder.exists():
@@ -144,9 +145,16 @@ def source_annual_pressure_adequacy(E_original,ES_original,out_directory,*,limit
       "complete_installation_BOM_LCA_and_TEA":False,
       "scenario_results":{}
     }
-    for mode in ("max_inventory","usable_service"):
+    modes=selected_modes or ("max_inventory","usable_service")
+    cases=selected_cases or ("E","E_plus_S")
+    if any(x not in ("max_inventory","usable_service") for x in modes):
+        raise ValueError("unregistered physical capacity semantics")
+    if any(x not in ("E","E_plus_S") for x in cases):
+        raise ValueError("unregistered source case")
+    for mode in modes:
         summary["scenario_results"][mode]={}
         for case,params in (("E",pa),("E_plus_S",pb)):
+            if case not in cases: continue
             duty=build_screened_pressure_duty("I_200bar",params["capacity_kg"],
                 capacity_semantics=mode,
                 source_PEM_outlet_bar_absolute=params["source_bafu_PEM_pressure_bar"],
@@ -182,5 +190,8 @@ if __name__=="__main__":
     p.add_argument("--ES",required=True)
     p.add_argument("--output",required=True)
     p.add_argument("--time-limit",type=float,default=300)
+    p.add_argument("--mode",choices=("max_inventory","usable_service"),action="append")
+    p.add_argument("--case",choices=("E","E_plus_S"),action="append")
     args=p.parse_args()
-    source_annual_pressure_adequacy(args.E,args.ES,args.output,limit_seconds=args.time_limit)
+    source_annual_pressure_adequacy(args.E,args.ES,args.output,limit_seconds=args.time_limit,
+         selected_modes=args.mode,selected_cases=args.case)
