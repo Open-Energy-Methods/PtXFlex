@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/f3-pressure-adequacy-2023.yml'
       - 'src/ptxflex/f3_pressure_adequacy.py'
+      - 'src/ptxflex/f3_adequacy_certificates.py'
+      - 'tests/test_f3_adequacy_certificates.py'
       - 'tests/test_f3_pressure_adequacy.py'
       - 'src/ptxflex/pressure_storage_duty.py'
   workflow_dispatch:
@@ -30,7 +32,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -e '.[dev,physics,original-sources]'
       - name: Verify Stage A mass/energy/pressure/slack conservation on explicitly synthetic MATH-only tests
-        run: python -m pytest -v tests/test_f3_pressure_adequacy.py tests/test_f3_pressure_storage_duty.py
+        run: python -m pytest -v tests/test_f3_pressure_adequacy.py tests/test_f3_pressure_storage_duty.py tests/test_f3_adequacy_certificates.py
       - name: Retrieve original 2023 PyNEXUS E/E+S 8760h immutable historical evidence
         run: |
           mkdir -p /tmp/original_f3_source
@@ -83,6 +85,33 @@ jobs:
                   else:
                       print(mode,case,"NOT CERTIFIED; do not report as numerical result",r["reason"])
           print("F3 adequacy certificates from genuine source saved; no false matched-plant cost/GWP conclusion.")
+          PY
+      - name: Independently certify achieved dispatch vs MILP shortage lower bound
+        run: |
+          python -m ptxflex.f3_adequacy_certificates \
+            --input outputs/F3_original_2023_real_gas_adequacy/stageA_2023_source_pressure_adequacy.json \
+            --output outputs/F3_original_2023_real_gas_adequacy/stageA_additional_shortfall_certified_interval.json
+          python - <<'PY'
+          import json, math, pathlib
+          p=pathlib.Path("outputs/F3_original_2023_real_gas_adequacy/stageA_additional_shortfall_certified_interval.json")
+          d=json.loads(p.read_text())
+          assert d["schema_version"]=="ptxflex.f3_stage_a_adequacy_certificates.v1"
+          assert d["original_source_E_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["original_source_EplusS_sha256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert d["not_a_matched_service_cost_or_environmental_comparison"]
+          assert not d["physical_installation_BOM_LCIA_TEA_complete"]
+          for mode,cases in d["cases"].items():
+              for case,r in cases.items():
+                  if r["status"]=="NOT_CERTIFIED":
+                      assert r["shortfall_lower_bound_kg"] is None
+                      continue
+                  lo=r["shortfall_lower_bound_kg"]; hi=r["shortfall_upper_bound_kg"]
+                  assert 0<=lo<=hi+0.01
+                  assert math.isclose(r["full_original_demand_shortfall_upper_bound_kg"],
+                      d["full_original_demand_kg"]-d["reference_service_kg"]+hi,abs_tol=.001)
+                  assert r["annual_operating_cost_eur"] is None
+                  assert r["native_full_system_GWP_kgCO2e"] is None
+          print("Source-locked Stage A mathematical shortage bounds certified; no LCA/TEA claim.")
           PY
       - uses: actions/upload-artifact@v4
         if: always()
