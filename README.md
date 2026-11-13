@@ -1,5 +1,13 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+### 13 November 2026: source-checked F2/F3 technical checkpoints
+
+**Physical source correction:** The frozen PyNEXUS 20/40 tonne limits are **maximum ideal H₂ inventory**, not guaranteed usable H₂; pressure-swing heel must be accounted for. [F2 source-studied vessel/EOS working-volume table](docs/F2_PUBLISHED_STORAGE_PRESSURE_SWING_AUDIT.md) and [25 passing physics tests](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43502681218) compare actual published Type I/II/III/IV example vessel dimensions/masses. These are screening candidates, not actual certified plant hardware.
+
+**Real 2023 full-year F3 pilot:** both independently solved HiGHS MILPs now deliver the **same H₂ amount in every 2023 hour**, fixed to original E-delivered model service (16.335279m kg). Net historical wholesale settlement **€25.7489m (E) vs €24.6070m (E+S)**, or ~€1.142m lower with ideal additional storage, MIP solver gap ≤10⁻⁶ and independently verified physical accounting. [F3 methods and limitations](docs/F3_2023_MATCHED_H2_IDEAL_PILOT_VERIFIED.md) · [machine-readable source result](data/results/F3_original2023_E_ES_ideal_matched_hourly_H2_annual_verified.json). **NOT** full 50t/day contract, pressure-limited storage, compression electricity, complete TEA, or environmental superiority. An actual manufacturer-matched physical BOM, plant losses, pressure-duty and PtXLens full LCA remain open.
+
+
+
 ## Coordinated scientific v1.0 — adopted research programme
 
 **Start here:** [cross-repository v1.0 master plan](docs/PROGRAMME_MASTER_PLAN_v1.0.md) · [12 engineering decision records](docs/DECISION_REGISTER_v1.0.md) · [machine-readable release gates](research/gates-v1.0.json) · [strict shared exchange schema](contracts/ptx-exchange-v1.schema.json) (identical in PtXLens).
