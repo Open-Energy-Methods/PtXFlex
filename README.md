@@ -1,5 +1,15 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+## Coordinated scientific v1.0 — adopted research programme
+
+**Start here:** [cross-repository v1.0 master plan](docs/PROGRAMME_MASTER_PLAN_v1.0.md) · [12 engineering decision records](docs/DECISION_REGISTER_v1.0.md) · [machine-readable release gates](research/gates-v1.0.json) · [strict shared exchange schema](contracts/ptx-exchange-v1.schema.json) (identical in PtXLens).
+
+**Executed first-stage evidence:** [F1 source benchmark workflow](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43497912940) independently audited **17,520** frozen E/E+S original hourly PyNEXUS records with common 2023 wind, market price and H₂ demand sequences; both original solved cases have unmet demand and cannot be called matched service. [F2 CoolProp 8 physics workflow](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43498612013) verified real-gas density, usable storage *working volume*, isentropic H₂ compression and mass-balance equations (15 physics tests). Screening pressure points are *not* an approved physical tank specification and **do not include actual tank manufacturing mass**.
+
+**Research scope gate:** PtXFlex owns source-verified physical hydrogen dispatch, storage thermodynamics, 8,760-hour matched-service optimization and a separately source-validated methanol subsystem. PtXLens owns the same-boundary physical equipment BOM, private licensed BAFU native LCA and full financial assessment. No real-data methanol LCA or complete E/E+S physical storage comparison exists yet. The original four-hour methanol MILP is synthetic verification **only**. [F2 equipment/pressure task](https://github.com/Open-Energy-Methods/PtXFlex/issues/4) · [F3 matched service task](https://github.com/Open-Energy-Methods/PtXFlex/issues/5).
+
+
+
 **Status: genuine 2023 Netherlands wind and electricity-price inputs independently ingested; methanol-plant physics, hourly carbon data, and real-source optimized production remain unvalidated.**
 
 ## Real-source pipeline: executed successfully
