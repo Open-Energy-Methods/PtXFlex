@@ -84,7 +84,7 @@ jobs:
           assert d["schema_version"]=="ptxflex.f3d_2023_source_hourly_joint_price_wind_paired_equalH2_counterfactual_stress.v1"
           assert d["source_observed_year"]==2023 and d["scenario_id"]==scenario and d["capacity_semantics"]==mode
           assert d["original_source_E_archive_SHA256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
-          assert d["original_source_ES_archive_SHA256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d5f4d055070f9"
+          assert d["original_source_ES_archive_SHA256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
           assert d["counterfactual_not_an_independently_verified_historical_weather_or_market_year"]
           assert d["source_stageA_shortage_constructive_not_globally_minimal"]
           assert d["same_source_2023_h2_product_service_and_market_wind_for_E_ES"]
