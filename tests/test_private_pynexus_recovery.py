@@ -102,3 +102,25 @@ def test_actual_copied_zip_has_distinct_inode(tmp_path, monkeypatch):
     for entry in registry.values():
         a, b = root / entry["filename"], other / entry["filename"]
         assert (a.stat().st_dev, a.stat().st_ino) != (b.stat().st_dev, b.stat().st_ino)
+
+
+def test_symlinked_primary_manifest_rejected(tmp_path, monkeypatch):
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    manifest = root / "PRIVATE_original_2023_source_provenance.json"
+    independent = tmp_path / "manifest_copy.json"
+    independent.write_bytes(manifest.read_bytes())
+    manifest.unlink()
+    manifest.symlink_to(independent)
+    with pytest.raises(old.EvidenceEscrowError, match="manifest missing"):
+        rec.verify_pair(root, other, make_secondary=True)
+
+
+def test_dangling_secondary_symlink_not_overwritten(tmp_path, monkeypatch):
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    target = tmp_path / "nonexistent_original.zip"
+    alias = other / registry["E"]["filename"]
+    alias.symlink_to(target)
+    with pytest.raises(old.EvidenceEscrowError, match="symbolic links"):
+        rec.verify_pair(root, other, make_secondary=True)
+    assert alias.is_symlink()
+    assert not target.exists()
