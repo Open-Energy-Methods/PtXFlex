@@ -18,6 +18,7 @@ from datetime import datetime,timezone
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 import shutil
 import tempfile
@@ -57,6 +58,15 @@ def file_sha256(p):
 
 
 def valid_archive(path, expected):
+    # Reject links and non-regular files before reading source bytes.
+    # A symlink can redirect an otherwise SHA-valid archive outside private escrow.
+    path=Path(path)
+    try:
+        mode=path.lstat().st_mode
+    except OSError as exc:
+        raise EvidenceEscrowError("original source archive unavailable") from exc
+    if not stat.S_ISREG(mode):
+        raise EvidenceEscrowError("original source archive must be a regular non-symlink file")
     if file_sha256(path)!=expected:
         raise EvidenceEscrowError("original source ZIP bytes do not match frozen verified SHA256")
     try:
@@ -82,7 +92,7 @@ def legal_destination(path):
 def save_from_api(entry,target,token,*,opener=urlopen):
     """Stream original bytes into temporary file and atomically replace ONLY after SHA audit."""
     path=target/entry["filename"]
-    if path.exists():
+    if path.exists() or path.is_symlink():
         valid_archive(path,entry["sha256"])
         return "existing_verified"
     url=f"https://api.github.com/repos/{SOURCE_REPO}/actions/artifacts/{entry['artifact_id']}/zip"
@@ -141,7 +151,9 @@ def preserve(destination,token,*,opener=urlopen):
         "reference":"PtXFlex / PtXLens P0 evidence escrow; only versioned derived non-restricted summaries go into public research outputs"
     }
     out=target/"PRIVATE_original_2023_source_provenance.json"
-    if out.exists():
+    if out.exists() or out.is_symlink():
+        if out.is_symlink() or not out.is_file():
+            raise EvidenceEscrowError("existing private provenance manifest must be a regular non-symlink file")
         # Prevent silently replacing source/audit manifest.
         old=json.loads(out.read_text(encoding="utf-8"))
         if set(old["original_source_SHA_lock"])!=set(results):
