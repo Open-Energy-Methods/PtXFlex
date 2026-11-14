@@ -92,6 +92,7 @@ jobs:
             --reference-wind-root "${RUNNER_TEMP}/wind-ref" \
             --selection-time-limit 1800 \
             --dispatch-time-limit 1800 \
+            --private-witness-out "${RUNNER_TEMP}/PRIVATE_F3D_${{ matrix.year }}_${{ matrix.mode }}_FULL_PRIMAL_WITNESS_NOT_public.json" \
             --output "${RUNNER_TEMP}/F3D_${{ matrix.year }}_${{ matrix.mode }}_audited_results_NO_hourly_data.json"
       - name: Preserve derived aggregate-only results for independent PtXLens inspection
         uses: actions/upload-artifact@v4
@@ -99,4 +100,11 @@ jobs:
           name: F3D-${{ matrix.year }}-${{ matrix.mode }}-strict-same-hour-H2-HiGHS-LCA-NOT-PASSED
           path: ${{ runner.temp }}/F3D_${{ matrix.year }}_${{ matrix.mode }}_audited_results_NO_hourly_data.json
           retention-days: 30
+          if-no-files-found: error
+      - name: Preserve PRIVATE full hourly dispatch states for independent mass-energy/pressure validation
+        uses: actions/upload-artifact@v4
+        with:
+          name: PRIVATE-F3D-${{ matrix.year }}-${{ matrix.mode }}-primal-witness-NOT-public
+          path: ${{ runner.temp }}/PRIVATE_F3D_${{ matrix.year }}_${{ matrix.mode }}_FULL_PRIMAL_WITNESS_NOT_public.json
+          retention-days: 7
           if-no-files-found: error
