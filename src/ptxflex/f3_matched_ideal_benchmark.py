@@ -144,7 +144,8 @@ def load_matched_pilot(E_original,ES_original):
 
 
 def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
-                        *,time_limit_s=240,mip_rel_gap=1e-6,pressure_duty=None):
+                        *,time_limit_s=240,mip_rel_gap=1e-6,pressure_duty=None,
+                        diagnostic_only_lp_relaxation=False):
     """Minimize annual signed net grid wholesale settlement for fixed H2 service.
 
     Scientific optimization test: same hourly target in both configurations.
@@ -233,9 +234,44 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
     # Equal terminal bank inventory for comparable cyclic yearly service.
     add({idx(n-1,S):1},final,final)
     A=coo_matrix((vv,(rr,cc)),shape=(len(bl),variable_count)).tocsr()
+    if diagnostic_only_lp_relaxation:
+        # Mathematically a SUPERSET of the true MILP: relaxing unit on/off and
+        # charge/discharge binary to continuous in [0,1] can only ADD feasible
+        # solutions, never exclude a true integer feasible solution. Thus
+        # an LP-INFEASIBLE status (HiGHS code 2) is a necessary-condition
+        # witness that the source integer model cannot meet this H2 profile
+        # under precisely the SAME original 2023 pressure/electric constraints.
+        # Zero objective prevents cost/market artifacts from being called
+        # physical infeasibility. A feasible LP does NOT prove MILP feasible.
+        integ.fill(0)
+        cost.fill(0.)
     result=milp(c=cost,integrality=integ,bounds=Bounds(lower,upper),
                 constraints=LinearConstraint(A,np.asarray(bl),np.asarray(bu)),
                 options={"time_limit":float(time_limit_s),"mip_rel_gap":float(mip_rel_gap)})
+    if diagnostic_only_lp_relaxation:
+        return {
+            "schema_version":"ptxflex.f3d_identical_model_binary_relaxed_h2_feasibility_diagnostic.v1",
+            "solver":"SciPy milp / HiGHS LP relaxation of source model",
+            "solver_status_code":int(result.status),
+            "solver_status_message":str(result.message),
+            "LP_model_has_accepted_feasible_vector":bool(result.x is not None),
+            "LP_relaxation_infeasible_as_reported_by_HiGHS":bool(result.status==2),
+            "MILP_infeasibility_supported_if_LP_status_2":bool(result.status==2),
+            "MILP_feasible_conclusion_permitted_from_LP_status_0":False,
+            "LP_relaxed_binary_primal_NOT_a_valid_integer_dispatch":True,
+            "LP_feasibility_objective_zero_ignores_2023_wholesale_cost":True,
+            "all_original_hourly_electricity_H2_storage_pressure_compressor_constraints_preserved":True,
+            "tested_hours":int(n),
+            "source_H2_required_annual_kg":float(np.sum(target)),
+            "source_wind_available_annual_mwh":float(np.sum(wind)),
+            "source_grid_interconnect_max_MW":float(gridmax),
+            "source_PEM_rated_power_MW":float(pmax),
+            "source_fixed_initial_and_terminal_storage_kg":[float(initial),float(final)],
+            "source_model_pressure_screened":pressure_duty is not None,
+            "original_unit_commitment_and_charge_binary_relaxed_for_necessary_feasibility_only":True,
+            "actual_site_operational_infeasibility_certified":False,
+            "manufacturer_or_full_LCA_and_plant_TEA_certified":False,
+        }
     if result.x is None:
         raise SourceLockedDispatchError(f"full-physics-unverified matched ideal MILP infeasible or failed: {result.status}: {result.message}")
     x=np.asarray(result.x,dtype=float).reshape((n,DIM))
