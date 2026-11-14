@@ -36,11 +36,12 @@ def screen(q,s,digest,**overrides):
 def test_exact_hourly_offer_math_is_sufficient_but_not_plant_validation():
     q,d=synthetic_trace()
     result=screen(q,q.copy(),d)
+    # True only for an explicitly flagged hypothetical documentary fixture; no real supplier verified.
     assert result["fixed_trace_supplier_offer_screen_pass"]
     assert result["hourly_mass_service_met"]
     assert result["source_annual_modelled_shortfall_kg"]==45
     assert result["total_unserved_kg"]==0
-    assert result["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==20
+    assert result["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==10
     assert not result["real_supplier_or_2023_availability_verified"]
     assert not result["full_plant_science_gate_passed"]
 
@@ -57,7 +58,7 @@ def test_same_annual_mass_wrong_hours_fails():
 @pytest.mark.parametrize("changes",[
     {"delivery_pressure_bar_absolute":19.},
     {"delivered_purity_mole_fraction":.99},
-    {"maximum_offer_ramp_kg_h_per_hour":19.},
+    {"maximum_offer_ramp_kg_h_per_hour":9.},
     {"pressure_and_purity_independently_documented":False}
 ])
 def test_delivery_gate_rejections(changes):
@@ -94,4 +95,26 @@ def test_no_implicit_year_boundary_startup():
     s[0]=10
     # In-year ramps are computed only for 0->1 ... 8758->8759.
     result=screen(q,s,d)
-    assert result["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==20.
+    assert result["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==10.
+
+def test_ramp_is_maximum_adjacent_absolute_difference_not_peak_hourly_supply():
+    q,d=synthetic_trace()
+    s=q.copy()
+    r=screen(q,s,d,maximum_offer_ramp_kg_h_per_hour=10.)
+    assert r["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==10.
+    assert r["fixed_trace_supplier_offer_screen_pass"]
+    r=screen(q,s,d,maximum_offer_ramp_kg_h_per_hour=9.999)
+    assert not r["ramp_gate_met"]
+    assert not r["fixed_trace_supplier_offer_screen_pass"]
+
+
+def test_year_boundary_not_cyclic_ramp():
+    q,d=synthetic_trace()
+    s=q.copy()
+    s[0]=30.
+    s[-1]=40.
+    r=screen(q,s,d,maximum_offer_ramp_kg_h_per_hour=40.)
+    assert r["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]==40.
+    assert r["fixed_trace_supplier_offer_screen_pass"]
+    # First and last hours are NOT adjacent; no invented inter-year cyclic assumption.
+    assert r["proposed_max_adjacent_hour_ramp_kg_h_per_hour"]!=abs(s[0]-s[-1])
