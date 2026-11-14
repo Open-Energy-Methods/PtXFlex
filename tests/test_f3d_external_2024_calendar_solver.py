@@ -72,3 +72,31 @@ def test_full_leap_8784h_lp_matrix_assembly_and_source_gate(monkeypatch):
     assert diagnostic["real_external_historical_provider_pair_independently_verified"] is False
     assert diagnostic["source_2023_reference_H2_service_valid_for_new_calendar"] is False
     assert diagnostic["MILP_feasible_conclusion_permitted_from_LP_status_0"] is False
+
+
+def test_real_highs_lp_can_solve_8784_hour_zero_service_feasibility():
+    """Real HiGHS run: calendar/matrix implementation only, NOT 2024 evidence.
+
+    A known feasible 8784h cyclic no-H2-service problem verifies full-year
+    sparse solver execution, independent of the stubbed layout check.
+    """
+    n=8784
+    params={
+        "capacity_kg":10000., "initial_kg":5000., "terminal_kg":5000.,
+        "charge_max_kg_h":2000., "discharge_max_kg_h":2000.,
+        "loss_fraction_per_hour":0., "rated_mw":125.,
+        "min_load_fraction":.1, "max_load_fraction":1.,
+        "ramp_mw_h":50., "grid_max_mw":50.,
+        "h2_coefficient_kg_mwh":20., "delivery_limit_kg_h":7200.,
+    }
+    zeros=np.zeros(n,dtype=float)
+    res=model.solve_ideal_storage(
+        zeros,zeros,zeros,params,source_calendar_year=2024,
+        external_year_input_class="synthetic_calendar_regression_only",
+        diagnostic_only_lp_relaxation=True,time_limit_s=90)
+    assert res["solver_status_code"]==0
+    assert res["LP_model_has_accepted_feasible_vector"] is True
+    assert res["LP_relaxation_infeasible_as_reported_by_HiGHS"] is False
+    assert res["tested_hours"]==8784
+    assert res["real_external_historical_provider_pair_independently_verified"] is False
+    assert res["MILP_feasible_conclusion_permitted_from_LP_status_0"] is False
