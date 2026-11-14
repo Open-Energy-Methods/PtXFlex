@@ -1,0 +1,149 @@
+name: F3-D LIVE native ENTSOE and ERA5 observed-year source gate (private)
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3d_live_entsoe.py'
+      - 'src/ptxflex/f3d_live_era5.py'
+      - 'src/ptxflex/f3d_live_provider_pair_gate.py'
+      - 'tests/test_f3d_live_provider_acquisition.py'
+      - '.github/workflows/f3d-live-entsoe-era5-2022-2024.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: f3d-provider-acquisition-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  independent_no_network_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: A44/A03 block, 2024 leap, 100m wind curve, missing data and source-gate tests
+        run: python -m pytest -q tests/test_f3d_live_provider_acquisition.py tests/test_f3d_external_observed_year_private_intake.py
+  entsoe_native:
+    needs: independent_no_network_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        year: [2023, 2022, 2024]
+    env:
+      ENTSOE_API_KEY: ${{ secrets.ENTSOE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]' 'entsoe-py>=0.6' 'pandas>=2.0'
+      - name: Require authorized ENTSO-E organization secret (value never logged)
+        run: |
+          if [ -z "${ENTSOE_API_KEY}" ]; then
+            echo "::error::ENTSOE_API_KEY not available to PtXFlex; verify organization secret repo access."
+            exit 1
+          fi
+      - name: Recover 14 original NL A44 documents and source-defined A03 UTC prices
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_live_entsoe --year "${{ matrix.year }}" --output "${RUNNER_TEMP}/entsoe-${{ matrix.year }}"
+      - name: Store PRIVATE temporary raw official source and SHA manifest for custodian export (NOT a durable backup)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-${{ matrix.year }}-NOT-releasable
+          path: ${{ runner.temp }}/entsoe-${{ matrix.year }}/
+          if-no-files-found: warn
+          retention-days: 7
+  era5_native:
+    needs: independent_no_network_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        year: [2023, 2022, 2024]
+    env:
+      ERA5_API_KEY: ${{ secrets.ERA5_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]' 'cdsapi>=0.7.7' 'pandas>=2.0' 'xarray>=2024.0' 'netCDF4>=1.6'
+      - name: Require Copernicus CDS organization secret and dataset authorization
+        run: |
+          if [ -z "${ERA5_API_KEY}" ]; then
+            echo "::error::ERA5_API_KEY unavailable. Grant this repository access to the organization secret."
+            exit 1
+          fi
+      - name: Retrieve 12 original ERA5 NetCDF months with 4 wind fields and verify 120m original farm curve
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_live_era5 --year "${{ matrix.year }}" --output "${RUNNER_TEMP}/era5-${{ matrix.year }}"
+      - name: Retain temporary PRIVATE original ERA5 months and source hashes for independent custodial archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-F3D-era5-original-${{ matrix.year }}-NOT-releasable
+          path: ${{ runner.temp }}/era5-${{ matrix.year }}/
+          if-no-files-found: warn
+          retention-days: 7
+  historical_source_pair_gate:
+    needs: [entsoe_native, era5_native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        year: [2023, 2022, 2024]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-${{ matrix.year }}-NOT-releasable
+          path: ${{ runner.temp }}/year-price/
+      - uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-${{ matrix.year }}-NOT-releasable
+          path: ${{ runner.temp }}/year-wind/
+      - uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-2023-NOT-releasable
+          path: ${{ runner.temp }}/ref-price/
+      - uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-2023-NOT-releasable
+          path: ${{ runner.temp }}/ref-wind/
+      - name: Reject all new observed-year claims unless source-original 2023 price AND wind match frozen float64 SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ptxflex.f3d_live_provider_pair_gate \
+            --year "${{ matrix.year }}" \
+            --price-root "${RUNNER_TEMP}/year-price" \
+            --wind-root "${RUNNER_TEMP}/year-wind" \
+            --reference-price-root "${RUNNER_TEMP}/ref-price" \
+            --reference-wind-root "${RUNNER_TEMP}/ref-wind" \
+            --output "${RUNNER_TEMP}/F3D_source_pair_${{ matrix.year }}_calendar_only.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F3D-SHA-CALENDAR-PAIR-${{ matrix.year }}-NOT-H2-LCA-TEA
+          path: ${{ runner.temp }}/F3D_source_pair_${{ matrix.year }}_calendar_only.json
+          if-no-files-found: error
+          retention-days: 30
