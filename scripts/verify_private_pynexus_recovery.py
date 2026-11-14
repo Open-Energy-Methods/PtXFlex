@@ -82,8 +82,12 @@ def verify_pair(primary,secondary,*,make_secondary=False):
                 if temp is not None:
                     temp.unlink(missing_ok=True)
         valid_archive(b,item["sha256"])
-        if a.resolve()==b.resolve():
-            raise EvidenceEscrowError("primary and secondary source path resolve to same file")
+        # Distinct paths can still name the same bytes through symlinks or hardlinks.
+        # Such aliases are not a recoverable second copy, even if ZIP/SHA pass.
+        if a.is_symlink() or b.is_symlink():
+            raise EvidenceEscrowError("source escrow archives must be regular files, not symbolic links")
+        if a.resolve()==b.resolve() or (a.stat().st_dev==b.stat().st_dev and a.stat().st_ino==b.stat().st_ino):
+            raise EvidenceEscrowError("primary and secondary source archives alias the same file/inode")
         results[key]={
             "verified_SHA256":item["sha256"],
             "verified_zip_crc_primary_and_secondary":True,
