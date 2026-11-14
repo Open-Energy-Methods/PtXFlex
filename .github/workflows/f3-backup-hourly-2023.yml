@@ -14,16 +14,18 @@ jobs:
   source_hourly_h2_backup_envelope:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Source: successful Stage A run 43536654454, head 489f009e164578c6eed972e0cc59cfed1ee0bd2d.
+    # Immutable GitHub Actions artifact SHA-256 values independently exposed by GitHub metadata.
     strategy:
       fail-fast: false
       matrix:
         include:
           - mode: max_inventory
-            artifact_id: 14084348674
-            digest: 6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8
+            artifact_id: 14089972401
+            digest: 3ea60fb58c49f34c33614bfb05a294020707ebcc24d7af570cb6ab701d7eb6c8
           - mode: usable_service
-            artifact_id: 14084937031
-            digest: 18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd
+            artifact_id: 14090181835
+            digest: f3299f4185efe0f9ff733dd1ab807d1db02f11c08d1a2f717cffb89d009aa43c
     env:
       GH_TOKEN: ${{ github.token }}
       MODE: ${{ matrix.mode }}
