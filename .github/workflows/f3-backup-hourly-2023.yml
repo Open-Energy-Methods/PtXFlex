@@ -4,6 +4,8 @@ on:
     branches: ['feat/milp-methanol-baseline']
     paths:
       - 'src/ptxflex/f3_backup_hourly_envelope.py'
+      - 'src/ptxflex/f3_backup_supply_duty.py'
+      - 'tests/test_f3_backup_supply_duty.py'
       - 'tests/test_f3_backup_hourly_envelope.py'
       - '.github/workflows/f3-backup-hourly-2023.yml'
   workflow_dispatch:
@@ -36,7 +38,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -e '.[dev]'
       - name: Negative and unit tests use synthetic mathematical traces only
-        run: python -m pytest -q tests/test_f3_backup_hourly_envelope.py
+        run: python -m pytest -q tests/test_f3_backup_hourly_envelope.py tests/test_f3_backup_supply_duty.py
       - name: Retrieve immutable E original 2023 source-derived Stage A ZIP with digest verification
         env:
           ARTIFACT_ID: ${{ matrix.artifact_id }}
@@ -76,6 +78,13 @@ jobs:
             x["stageA_original_feasible_dispatch_shortage_upper_bound_kg"],abs_tol=.0002)
           assert x["single_incumbent_hypothetical_topup_occupied_hours"]>0
           assert x["single_incumbent_hypothetical_topup_max_kg_per_hour"]>0
+          duty=x["single_incumbent_source_hourly_supply_duty"]
+          assert duty["source_hours"]==8760
+          assert math.isclose(duty["annual_hypothetical_topup_kg"],x["single_incumbent_hypothetical_topup_annual_kg"],abs_tol=0.0002)
+          assert math.isclose(duty["windows"]["24"]["peak_contiguous_window_kg"],x["single_incumbent_hypothetical_topup_24h_peak_kg"],abs_tol=1e-6)
+          assert duty["max_positive_adjacent_hour_increase_kg_h_per_hour"]>=0
+          assert duty["max_negative_adjacent_hour_decrease_kg_h_per_hour"]>=0
+          assert duty["backup_LCA_TEA_or_real_plant_validation"] is False
           assert x["incremental_backup_H2_kgCO2e_per_kg"] is None
           assert x["incremental_backup_cost_EUR_per_kg"] is None
           assert x["external_backup_supply_ramp_availability_and_reliability_verified"] is False
