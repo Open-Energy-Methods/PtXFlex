@@ -1,5 +1,20 @@
 # P0 — preserve the original 2023 PyNEXUS evidence privately, before archive expiration
 
+## Live GitHub retention verification — 14 November 2026
+
+The three original source ZIP artifact records were queried **directly through GitHub Actions' workflow-run artifact listing API** on 14 November 2026. All three currently report **`expired=false`** with these authoritative point-in-time expiry timestamps (UTC):
+
+| Original source | Artifact ID | Current `expires_at` UTC | `expired` |
+|---|---:|---|---|
+| 2023 original E model (run 40229852457) | 12612294862 | 2026-12-24 **20:18:09Z** | false |
+| 2023 original E+S model (run 40229852457) | 12613045475 | 2026-12-24 **20:21:57Z** | false |
+| 2023 original ENTSO-E A44 provider XML (run 40225702504) | 12610917985 | 2026-12-24 **19:24:29Z** | false |
+
+**Earliest documented original-source archive expiry:** **24 December 2026, 19:24:29 UTC** (the A44 original market provider XML). These dates are live-verified repository API metadata **as of 14 November**, not permanent promises of retention and not preservation evidence. Store lawfully in a PRIVATE user-controlled primary location and a physically independently reviewed backup with a tested recovery path well before this date. The GitHub REST artifact ZIP download is a temporary archive wrapper around the original published contents and must be interpreted using the frozen original SHA-256/ZIP verification script, not as a new immutable source.
+
+The cross-repository [machine-readable metadata snapshot](../research/P0_2023_PyNEXUS_original_actions_artifacts_live_status_2026-11-14.json) records the source artifact name/id, size and expiry but contains **no original market/provider data**. **Not yet performed here:** actual long-term private copy/recovery, independent storage-device validation, original source licence clearance or signed independent critical review. **P0 release remains NOT PASSED.**
+
+
 **Deadline to recover original GitHub Actions artifacts:** **2026-12-24** (per original source registry).  
 **Scientific status:** F1 annual electricity/H₂/price/wind source reconstruction is CI-verified. Long-term original-source availability remains a **P0 release gate**, not something source fingerprints alone can guarantee.
 
