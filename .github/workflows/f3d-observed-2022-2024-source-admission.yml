@@ -4,6 +4,8 @@ on:
     branches: ['feat/milp-methanol-baseline']
     paths:
       - 'src/ptxflex/f3d_external_observed_year_private_intake.py'
+      - 'src/ptxflex/f3_matched_ideal_benchmark.py'
+      - 'tests/test_f3d_external_2024_calendar_solver.py'
       - 'tests/test_f3d_external_observed_year_private_intake.py'
       - 'research/F3_D_ALTERNATIVE_OBSERVED_2022_2024_ENTSOE_ERA5_PRIVATE_SOURCE_ADMISSION_v1.json'
       - '.github/workflows/f3d-observed-2022-2024-source-admission.yml'
@@ -22,7 +24,7 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - name: Verify 2022/2024 UTC strict calendar, leap year, exact source turbine farm cap, negative NL prices and no raw provider placeholders
         run: |
-          python -m pytest -q tests/test_f3d_external_observed_year_private_intake.py tests/test_f3d_2023_source_hourly_counterfactuals.py
+          python -m pytest -q tests/test_f3d_external_observed_year_private_intake.py tests/test_f3d_2023_source_hourly_counterfactuals.py tests/test_f3d_external_2024_calendar_solver.py tests/test_f3_matched_ideal_benchmark.py
       - name: Verify the actual externally observed source evidence gate has NOT been passed with fake files
         run: |
           python - <<'PY'
