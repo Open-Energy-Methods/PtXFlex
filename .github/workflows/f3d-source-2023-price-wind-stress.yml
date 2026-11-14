@@ -57,7 +57,7 @@ jobs:
               "https://api.github.com/repos/$3/actions/artifacts/$1/zip" -o "/tmp/f3d_orig/$2"
           done
           echo "069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051  /tmp/f3d_orig/E.zip" | sha256sum --check
-          echo "cd4101fe62c3f1b8aa2d7508d3651d2fee40d5f4d055070f9  /tmp/f3d_orig/ES.zip" | sha256sum --check
+          echo "cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9  /tmp/f3d_orig/ES.zip" | sha256sum --check
           echo "$STAGE_SHA  /tmp/f3d_orig/StageA.zip" | sha256sum --check
           unzip -q /tmp/f3d_orig/StageA.zip -d /tmp/f3d_stageA
           test -s "/tmp/f3d_stageA/${MODE}_E_hourly_additional_shortfall.json"
