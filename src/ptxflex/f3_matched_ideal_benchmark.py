@@ -49,6 +49,41 @@ class SourceLockedDispatchError(ValueError):
     pass
 
 
+# Explicit solver calendar rather than silently truncating 2024 to the
+# source-2023 8760-hour clock. This only certifies MODEL SHAPE, never real
+# ENTSO-E/ERA5 provenance, vendor feasibility or cross-year monetary parity.
+SOURCE_CALENDAR_HOURS = {2022: 8760, 2023: 8760, 2024: 8784}
+EXTERNAL_YEAR_CLASSES = {
+    "synthetic_calendar_regression_only",
+    "private_provider_pair_admission_candidate_not_peer_reviewed",
+}
+
+
+def validate_dispatch_calendar(n, source_calendar_year=2023,
+                               external_year_input_class=None):
+    """Fail closed on leap-year coverage and false observed-source labels.
+
+    The legacy 2023 benchmark intentionally supports small synthetic test
+    windows, but no more than its frozen 8760 original source hours.
+    Alternative observed calendar years need EXACT full-year UTC coverage;
+    they cannot inherit source-2023 E hourly service or source-year prices.
+    An input class is a disclosure, NOT an authenticating provider certificate.
+    """
+    if type(source_calendar_year) is not int or source_calendar_year not in SOURCE_CALENDAR_HOURS:
+        raise SourceLockedDispatchError("unregistered external source calendar year")
+    if type(n) is not int or n < 2:
+        raise SourceLockedDispatchError("invalid dispatch horizon")
+    if source_calendar_year == 2023:
+        if external_year_input_class is not None or n > SOURCE_CALENDAR_HOURS[2023]:
+            raise SourceLockedDispatchError("original 2023 source has at most 8760 hours")
+    elif (n != SOURCE_CALENDAR_HOURS[source_calendar_year] or
+          external_year_input_class not in EXTERNAL_YEAR_CLASSES):
+        raise SourceLockedDispatchError(
+            "external 2022/2024 dispatch requires exact UTC annual hours "
+            "and an explicit NON-certified input class; no leap-day deletion")
+    return SOURCE_CALENDAR_HOURS[source_calendar_year]
+
+
 def sha_bytes(b):
     return hashlib.sha256(b).hexdigest()
 
@@ -145,7 +180,8 @@ def load_matched_pilot(E_original,ES_original):
 
 def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
                         *,time_limit_s=240,mip_rel_gap=1e-6,pressure_duty=None,
-                        diagnostic_only_lp_relaxation=False):
+                        diagnostic_only_lp_relaxation=False,
+                        source_calendar_year=2023, external_year_input_class=None):
     """Minimize annual signed net grid wholesale settlement for fixed H2 service.
 
     Scientific optimization test: same hourly target in both configurations.
@@ -161,7 +197,7 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
         raise SourceLockedDispatchError("invalid equal-length source hourly vectors")
     if min(wind.min(),target.min()) < -1e-8:
         raise SourceLockedDispatchError("negative wind or H2 service")
-    if n>8760:raise SourceLockedDispatchError("original 2023 source has at most 8760 hours")
+    validate_dispatch_calendar(n,source_calendar_year,external_year_input_class)
     if any(not math.isfinite(float(v)) for v in params.values()):
         raise SourceLockedDispatchError("unphysical source plant parameters")
     cap=params["capacity_kg"]
@@ -249,7 +285,7 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
                 constraints=LinearConstraint(A,np.asarray(bl),np.asarray(bu)),
                 options={"time_limit":float(time_limit_s),"mip_rel_gap":float(mip_rel_gap)})
     if diagnostic_only_lp_relaxation:
-        return {
+        diagnostic = {
             "schema_version":"ptxflex.f3d_identical_model_binary_relaxed_h2_feasibility_diagnostic.v1",
             "solver":"SciPy milp / HiGHS LP relaxation of source model",
             "solver_status_code":int(result.status),
@@ -272,6 +308,15 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
             "actual_site_operational_infeasibility_certified":False,
             "manufacturer_or_full_LCA_and_plant_TEA_certified":False,
         }
+        if source_calendar_year != 2023:
+            diagnostic.update({
+                "source_calendar_year":source_calendar_year,
+                "input_class":external_year_input_class,
+                "real_external_historical_provider_pair_independently_verified":False,
+                "source_2023_reference_H2_service_valid_for_new_calendar":False,
+                "external_calendar_model_mathematics_only":True,
+            })
+        return diagnostic
     if result.x is None:
         raise SourceLockedDispatchError(f"full-physics-unverified matched ideal MILP infeasible or failed: {result.status}: {result.message}")
     x=np.asarray(result.x,dtype=float).reshape((n,DIM))
@@ -279,9 +324,16 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
                               pressure_duty=pressure_duty)
     if pressure_duty is not None:
         audit["pressure_EOS_bounds"]=audit_gas_pressure_boundaries(pressure_duty,x[:,S])
+    if source_calendar_year != 2023:
+        # The independent mass/energy audit is reusable, but its legacy
+        # annual cost field uses a 2023-specific monetary label.
+        audit["total_wholesale_net_grid_eur_unadjusted_source_calendar"] = audit.pop(
+            "total_wholesale_net_grid_eur2023")
+        audit["source_calendar_year"] = source_calendar_year
+        audit["inflation_or_currency_year_normalization_performed"] = False
     opt_gap=getattr(result,"mip_gap",None)
     gap=float(opt_gap) if opt_gap is not None else None
-    return {
+    output = {
       "model_schema":SCHEMA,
       "solver":"SciPy milp / HiGHS",
       "solver_status":int(result.status),
@@ -302,6 +354,17 @@ def solve_ideal_storage(wind_mw,price_eur_mwh,required_delivered_kg_h,params,
       "complete_physical_storage_compression_and_BAU_LCA":False,
       "valid_for_environmental_superiority_claim":False,
     }
+    if source_calendar_year != 2023:
+        output.update({
+            "source_year":source_calendar_year,
+            "source_input_history_kind":"external calendar mathematical input, provenance is NOT independently verified by solver",
+            "external_year_input_class":external_year_input_class,
+            "external_year_actual_observed_provider_pair_peer_reviewed":False,
+            "new_year_H2_service_must_be_defined_and_matched_independently":True,
+            "cross_year_monetary_price_year_normalization_performed":False,
+            "eligible_for_industrial_plant_or_v1_0_validation":False,
+        })
+    return output
 
 
 def independently_audit(x,wind,price,target,params,*,source_cost,abs_tol=2e-4,
