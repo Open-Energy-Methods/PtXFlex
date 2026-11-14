@@ -27,3 +27,13 @@ The original frozen 2023 PyNEXUS ZIP hashes remain E `069455704573825f4e709e6705
 - Retain F2/F3/L1 scientific gates as **NOT_PASSED**; do not merge or release v1.0 without independent review.
 
 Source references: [F3 physical-pressure audit](F3_2023_PHYSICAL_200BAR_FEASIBILITY_SOURCE_AUDIT.md), [original 2023 source verification](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43514524449), [master plan](PROGRAMME_MASTER_PLAN_v1.0.md), and [decision register](DECISION_REGISTER_v1.0.md).
+
+## 2026-11-14 follow-up: original-source CI re-execution and evidence control
+
+- Prior Stage B run [43529968819](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43529968819) failed at `BackupEnvelopeError: missing upstream content-addressed source-hourly trace`, correctly rejecting historical pre-digest Stage A artifacts. This is an **evidence version incompatibility**, not proof of a new physical infeasibility.
+- Earlier Stage A original-source [43529865654](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43529865654) completed successfully, but predates the stricter evidence contract and cannot alone authorize Stage B re-pinning.
+- New Stage A run [43536558557](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43536558557) was **queued** at last verification; final result and artifact IDs are not yet known. Source-reproduction job inputs remain original PyNEXUS ZIPs; no synthetic hourly real-case observations have been introduced.
+- CI now independently recomputes SHA-256 from the *exact saved 8,760h JSON trace bytes*, compares both Stage A summary and independent certificate digests, verifies source/modelled provenance, and refuses to call an uncertified case certified. Source trace digests will be emitted in CI logs.
+- The Stage B matrix still references obsolete artifacts 14084348674 and 14084937031. **Do not mark Stage B passed or alter its strict validation** until the new successful Stage A E-case artifact IDs and downloaded ZIP SHA-256 values have been recorded and pinned. No derived backup provider, pressure-quality compliance, ramping, costs or GWP is known.
+
+**Scientific status:** Stage A hash verification is an *integrity gate*, not a physically sourced backstop. All F2/F3/L1/L2/L3 scientific acceptance gates remain open; both original-source hourly hydrogen and future Stage B top-up remain modelled engineering quantities, not metered plant measurements.
