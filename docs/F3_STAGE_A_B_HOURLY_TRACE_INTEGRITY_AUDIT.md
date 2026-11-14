@@ -52,3 +52,21 @@ GitHub Actions artifact metadata (SHA-256 of artifact ZIP) for the exact two ori
 The other two Stage A E+S artifacts are max_inventory 14089996607 (`5b2ad1f4faef349cca7c1bded9bfecf68f2ef168eee9461c4d9b370561b8e867`) and usable_service 14090455695 (`586de83cf19882d466170b1a5181610fa3d4a2f49cba6cb5e3b38f6df396899d`). All four were reported unexpired when checked. The Stage B CI workflow was repinned to the exact two E IDs and ZIP SHA-256 values in commit [dacce271](https://github.com/Open-Energy-Methods/PtXFlex/commit/dacce271ca80d4dafadc7581dd703810aa03a240). No legacy artifact digest or hourly content-addressed integrity check was waived.
 
 **Acceptance status:** Source Stage A CI PASS; Stage B must still be confirmed on the new pinned artifacts. The supplier's hourly delivery, purity, pressure, ramp, emissions and cost are not verified. F3, F2, L1, L2 and L3 gates remain NOT_PASSED; no full-plant LCA/TEA or comparative claim follows from these source-modelled H2 shortage traces.
+
+
+## 2026-11-14 03:48 CET: Stage B genuine source evidence confirmed PASS
+
+The pinned Stage B run [43542415549](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43542415549) is now **completed successfully** for both original-source E pressure-bank interpretations. Both jobs independently retrieved the exact Stage A E-case ZIPs pinned above, checked their SHA-256, authenticated the Stage A 8,760-hour trace and produced a derived source-modelled hypothetical hourly backup envelope. The upstream original PyNEXUS source E/E+S hashes remain unchanged. This resolves the earlier obsolete-artifact evidence-chain blocker; it does **not** establish any physical external backup supplier.
+
+| Original E 2023 physical-bank semantics | Stage B output artifact ID | Stage B ZIP SHA-256 | Feasible-incumbent hypothetical top-up, kg/year | Peak hourly, kg/h | Occupied hours | Longest contiguous event, h | Certified annual shortage lower bound, kg |
+|---|---:|---|---:|---:|---:|---:|---:|
+| max_inventory (20t gross stock) | 14091518876 | `c13757e684ea0c45e378c7cba6c23918892b17312c82aa77db51c657b5a92727` | 66524.31653871403 | 1029.0279027902793 | 176 | 8 | 65860.37818773676 |
+| usable_service (20t withdrawable above heel) | 14092352876 | `4dad990def008ba05936e2fa2e0c6053d413832f5cdc7c168878b9267429b091` | 3718.9932154731305 | 183.60901388726782 | 90 | 2 | 3718.7443495468883 |
+
+The output source-hourly trace SHA-256s are `0e78e6bb2a14bee4f46b1e31e769e7dfcafd6242cbd7d5058da3d26ac1a820` (max inventory) and `2cef77ad92da1223629394fc04ad19b6cf9850d28d4f20a80c6251a10d2adb8c` (usable service). They are exact content-addressed identities for *different* modelled 8,760-hour shortage traces; their magnitudes are not plant measurements. The numerical annual lower/upper interval is an MILP bound on **minimum additional H2 shortfall** under the screening constraints, while the hourly peaks and contiguous events are from **one feasible incumbent**. They are not lower bounds on backup equipment peak duty or guaranteed service reliability.
+
+**Critical interpretation:** It would be scientifically incorrect to compare the 66.5t and 3.72t values as an isolated improvement from vessel technology. The `usable_service` case specifies enough additional vessels to provide 20t *withdrawable* capacity; `max_inventory` fixes 20t gross inventory with residual heel inaccessible at 20bar. These represent different installed equipment masses, capex and environmental inventories, none of which is yet closed. Neither scenario supplies a validated physical 20bar delivery-node top-up, nor does it satisfy the original full 18.25-million-kg 2023 demand.
+
+**Release status remains NOT_PASSED:** F2 pressure dynamics/cooling/compressor map, L1 installed BOM and BAFU-compatible manufacturing provider, F3 independently verified physical backup, L2 full native GWP and L3 complete EU TEA. Do not promote Stage B PASS to full F3 or comparative superiority. Both branches remain draft.
+
+Evidence: [Stage B completed workflow](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43542415549), [gross inventory artifact](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43542415549/artifacts/14091518876), [usable service artifact](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43542415549/artifacts/14092352876).
