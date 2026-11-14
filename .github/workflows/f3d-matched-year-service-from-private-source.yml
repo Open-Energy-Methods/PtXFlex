@@ -1,0 +1,99 @@
+name: F3-D matched E/E+S full-year H2 service and price-wind MILP (PRIVATE SOURCES)
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_run_id:
+        description: Successful F3-D live provider-source run with all 6 provider artifacts and source-pair gate
+        required: true
+        type: string
+        default: '43617006319'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: f3d-independent-year-milp-${{ github.event.inputs.upstream_run_id }}
+  cancel-in-progress: false
+jobs:
+  independent_source_year_model_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install hermetic model dependencies (no API secrets exposed here)
+        run: python -m pip install -e '.[dev]'
+      - name: Verify frozen source parameters, integer model mathematics, calendar and proof bounds
+        run: python -m pytest -q tests/test_f3d_year_matched_service.py tests/test_f3d_external_2024_calendar_solver.py
+  pressure_screened_year_milp:
+    needs: independent_source_year_model_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 140
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        year: [2022, 2024]
+        mode: [max_inventory, usable_service]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install source-year solver with CoolProp screening
+        run: python -m pip install -e '.[dev,physics]'
+      - name: Retrieve year-original A44 XML and normalized NL prices from PRIVATE run artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-${{ matrix.year }}-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: ${{ inputs.upstream_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/price-year/
+      - name: Retrieve year-original ERA5 four-component NetCDF and normalized offshore wind
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-${{ matrix.year }}-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: ${{ inputs.upstream_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/wind-year/
+      - name: Retrieve independent ORIGINAL 2023 A44 market-calibration archive
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-2023-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: ${{ inputs.upstream_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/price-ref/
+      - name: Retrieve independent ORIGINAL 2023 ERA5 wind-calibration archive
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-2023-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: ${{ inputs.upstream_run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/wind-ref/
+      - name: Independent full year original-source SHAs, E max feasible flat H2, exact E/ES service and MILP bounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_year_matched_service \
+            --year "${{ matrix.year }}" \
+            --mode "${{ matrix.mode }}" \
+            --price-root "${RUNNER_TEMP}/price-year" \
+            --wind-root "${RUNNER_TEMP}/wind-year" \
+            --reference-price-root "${RUNNER_TEMP}/price-ref" \
+            --reference-wind-root "${RUNNER_TEMP}/wind-ref" \
+            --selection-time-limit 1800 \
+            --dispatch-time-limit 1800 \
+            --output "${RUNNER_TEMP}/F3D_${{ matrix.year }}_${{ matrix.mode }}_audited_results_NO_hourly_data.json"
+      - name: Preserve derived aggregate-only results for independent PtXLens inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: F3D-${{ matrix.year }}-${{ matrix.mode }}-strict-same-hour-H2-HiGHS-LCA-NOT-PASSED
+          path: ${{ runner.temp }}/F3D_${{ matrix.year }}_${{ matrix.mode }}_audited_results_NO_hourly_data.json
+          retention-days: 30
+          if-no-files-found: error
