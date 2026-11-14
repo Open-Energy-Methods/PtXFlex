@@ -77,3 +77,26 @@ def test_inverted_pressure_and_temperature_rejected():
     x["gas_temperature_min_k"] = 400
     with pytest.raises(HandoffError):
         screen_f2_l1_handoff(x)
+
+
+@pytest.mark.parametrize("rated", [19.0, 199.999, 0, -1, float("nan"), float("inf"), True])
+def test_vessel_rating_cannot_undershoot_maximum_storage_pressure(rated):
+    x = fixture()
+    x["components"]["pressure_vessels"]["rated_pressure_bar_absolute"] = rated
+    with pytest.raises(HandoffError):
+        screen_f2_l1_handoff(x)
+
+
+def test_equal_vessel_rating_is_mathematical_screen_only():
+    x = fixture()
+    x["components"]["pressure_vessels"]["rated_pressure_bar_absolute"] = 200.0
+    result = screen_f2_l1_handoff(x)
+    assert result["review_ready"]
+    assert not result["design_certified"]
+
+
+def test_downstream_low_pressure_rating_needs_separate_segment_review():
+    x = fixture()
+    x["components"]["instrumentation"]["rated_pressure_bar_absolute"] = 30.0
+    result = screen_f2_l1_handoff(x)
+    assert result["review_ready"] and not result["design_certified"]
