@@ -6,7 +6,10 @@ This is a provider-source and calendar gate, NOT H2 optimization review.
 """
 from __future__ import annotations
 import argparse
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
+import csv
+import math
+import struct
 import hashlib
 import json
 from pathlib import Path
@@ -24,6 +27,27 @@ def check(ok,reason):
 
 def sha(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def validate_2023_csv(path,metric,cap=None):
+    """Independent calibration of frozen 2023 f64 SHA; intake gate excludes 2023."""
+    start=datetime(2023,1,1,tzinfo=timezone.utc)
+    digest=hashlib.sha256()
+    with Path(path).open(encoding="utf-8-sig",newline="") as f:
+        r=csv.DictReader(f)
+        check(r.fieldnames==["timestamp_utc",metric],"2023 normalized source fields invalid")
+        count=0
+        for row in r:
+            check(count<8760,"2023 source has excess hours")
+            expected=(start+timedelta(hours=count)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            check(row["timestamp_utc"]==expected,"2023 source has missing/repeated UTC hours")
+            v=float(row[metric])
+            check(math.isfinite(v) and (cap is None or 0<=v<=cap+1e-8),
+                  "2023 source has unphysical or missing price/wind")
+            digest.update(struct.pack("<d",v))
+            count+=1
+    check(count==8760,"2023 source missing hours")
+    return {"hours":count,"float64_le_sha256":digest.hexdigest()}
 
 
 def verify_one(folder,year,kind):
@@ -68,9 +92,9 @@ def verify_one(folder,year,kind):
         check(p.is_file() and not p.is_symlink() and sha(p)==item["sha256"] and
               p.stat().st_size==item["bytes"],kind+" provider original SHA/size mismatch")
     check(sha(normalized)==data["normalized_csv_SHA256"],kind+" normalized CSV SHA mismatch")
-    validated=validate_hourly_csv(normalized,year,metric,cap=cap,
-                                  expected_count=8760 if year==2023 else None)
-    check(validated["hours"]==8760 if year==2023 else validated["hours"]==YEARS[year],
+    validated=(validate_2023_csv(normalized,metric,cap=cap) if year==2023 else
+               validate_hourly_csv(normalized,year,metric,cap=cap))
+    check(validated["hours"]==(8760 if year==2023 else YEARS[year]),
           kind+" invalid original year hours")
     check(validated["float64_le_sha256"]==recorded,
           kind+" normalized CSV floats differ from original A44/ERA5 provenance")
