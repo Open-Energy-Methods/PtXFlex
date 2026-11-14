@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -249,6 +250,7 @@ def select_max_uniform_fraction(wind,params,pressure_duty,*,year=None,
         "E_price_neutral_physical_residual_max":float(max(audit["independent_max_physical_residuals"].values())),
         "source_E_pressure_screen_only":pressure_duty is not None,
         "source_PEM_model_not_site_validated":True,
+        "_E_selector_states_private":states,
         "_target_private":target,
     }
 
@@ -290,7 +292,8 @@ def certify_cost_case(result,target,case,year):
 
 
 def run_verified_year(year,mode,price_root,wind_root,reference_price_root,
-                      reference_wind_root,*,selection_limit_s=900,dispatch_limit_s=900):
+                      reference_wind_root,*,selection_limit_s=900,dispatch_limit_s=900,
+                      private_witness_out=None):
     require(year in ALLOWED_YEARS,"only external 2022/2024 source years")
     require(mode in ("max_inventory","usable_service"),"unknown source bank scenario")
     gate=verify_pair(year,price_root,wind_root,reference_price_root,reference_wind_root)
@@ -309,7 +312,9 @@ def run_verified_year(year,mode,price_root,wind_root,reference_price_root,
     service=select_max_uniform_fraction(wind,pE,duties["E"],year=year,
                                         time_limit_s=selection_limit_s)
     target=service.pop("_target_private")
+    selected_E_states=service.pop("_E_selector_states_private")
     answers={}
+    private_states={}
     for case,p in params.items():
         r=solve_ideal_storage(wind,price,target,p,
                               source_calendar_year=year,
@@ -317,12 +322,39 @@ def run_verified_year(year,mode,price_root,wind_root,reference_price_root,
                               pressure_duty=duties[case],
                               time_limit_s=dispatch_limit_s,mip_rel_gap=1e-6)
         answers[case]=certify_cost_case(r,target,case,year)
+        private_states[case]=np.asarray(r["hourly_solved_states"],dtype=np.float64)
     e=answers["E"];es=answers["E_plus_S"]
     estimate=e["modelled_cost_eur_in_source_calendar_not_inflation_adjusted"]-es["modelled_cost_eur_in_source_calendar_not_inflation_adjusted"]
     low=e["solver_cost_lower_bound_eur"]-es["modelled_cost_eur_in_source_calendar_not_inflation_adjusted"]
     high=e["modelled_cost_eur_in_source_calendar_not_inflation_adjusted"]-es["solver_cost_lower_bound_eur"]
     require(low<=estimate+1e-3<=high+1e-3,
             "certified E/E+S source-year wholesale cost difference outside bound")
+    if private_witness_out is not None:
+        out=Path(private_witness_out)
+        require(not out.exists(),"private full-hour dispatch witness cannot overwrite originals")
+        original={
+            "schema_version":"ptxflex.f3d_PRIVATE_original_source_dispatch_witness.v1",
+            "year":year,"capacity_semantics":mode,
+            "original_E_SHA256":E_SHA,"original_ES_SHA256":ES_SHA,
+            "price_float64_sha256":array_sha(price),
+            "wind_float64_sha256":array_sha(wind),
+            "target_float64_sha256":array_sha(target),
+            "target_hourly_kg":target.tolist(),
+            "E_price_neutral_alpha_witness_hourly_states":selected_E_states.tolist(),
+            "source_year_prices_and_wind_NOT_duplicated_in_witness":True,
+            "source_original_provider_hourly_market_weather_kept_PRIVATE":True,
+            "cases":{
+                name:{
+                    "source_model_parameters":p,
+                    "Type_I_200bar_model_pressure_duty":asdict(duties[name]),
+                    "cost_optimum_hourly_states":private_states[name].tolist(),
+                }
+                for name,p in params.items()
+            },
+            "not_measured_industrial_operation":True,
+        }
+        out.parent.mkdir(parents=True,exist_ok=True)
+        out.write_text(json.dumps(original,separators=(",",":"),allow_nan=False)+"\n",encoding="utf-8")
     return {
         "schema_version":OUTPUT_SCHEMA,
         "year":year,"capacity_semantics":mode,
@@ -361,13 +393,16 @@ def main(argv=None):
     ap.add_argument("--selection-time-limit",type=int,default=900)
     ap.add_argument("--dispatch-time-limit",type=int,default=900)
     ap.add_argument("--output",required=True)
+    ap.add_argument("--private-witness-out",
+                    help="Private full-hour cost/selection primal witness for independently checking physics; never commit")
     args=ap.parse_args(argv)
     target=Path(args.output)
     require(not target.exists(),"cannot overwrite an existing source-year model result")
     report=run_verified_year(args.year,args.mode,args.price_root,args.wind_root,
                              args.reference_price_root,args.reference_wind_root,
                              selection_limit_s=args.selection_time_limit,
-                             dispatch_limit_s=args.dispatch_time_limit)
+                             dispatch_limit_s=args.dispatch_time_limit,
+                             private_witness_out=args.private_witness_out)
     target.parent.mkdir(parents=True,exist_ok=True)
     target.write_text(json.dumps(report,sort_keys=True,indent=2,allow_nan=False)+"\n",encoding="utf-8")
     print("F3-D source-year matched E/E+S",args.year,args.mode,
