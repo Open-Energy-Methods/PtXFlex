@@ -61,6 +61,9 @@ def verify_pair(primary,secondary,*,make_secondary=False):
         a=p/item["filename"]
         if not a.is_file():
             raise EvidenceEscrowError("missing original private source archive "+key)
+        # Never follow a symlink as a source when validating primary archive.
+        if a.is_symlink():
+            raise EvidenceEscrowError("source escrow archives must be regular files, not symbolic links")
         valid_archive(a,item["sha256"])
         if (recorded[key].get("original_archive_sha256")!=item["sha256"]
                 or recorded[key].get("original_filename")!=item["filename"]
@@ -81,6 +84,10 @@ def verify_pair(primary,secondary,*,make_secondary=False):
             finally:
                 if temp is not None:
                     temp.unlink(missing_ok=True)
+        # Reject aliases BEFORE archive verification: valid_archive itself is
+        # fail-closed and may raise a different symlink exception first.
+        if b.is_symlink():
+            raise EvidenceEscrowError("source escrow archives must be regular files, not symbolic links")
         valid_archive(b,item["sha256"])
         # Distinct paths can still name the same bytes through symlinks or hardlinks.
         # Such aliases are not a recoverable second copy, even if ZIP/SHA pass.
