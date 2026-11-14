@@ -42,7 +42,9 @@ def test_second_private_copy_restored_and_both_hash_checked(tmp_path,monkeypatch
     assert len(x["source_file_checks"])==3
     assert not x["full_P0_release_gate_passed"]
     assert not x["licence_conditions_and_permitted_redistribution_independently_reviewed"]
-    assert x["same_device_not_independent_backup"]
+    assert x["same_filesystem_not_independent_backup"]
+    assert not x["independent_physical_storage_device_verified"]
+    assert x["independent_physical_device_requires_manual_verification"]
     assert all((other/v["filename"]).is_file() for v in registry.values())
 
 
