@@ -84,7 +84,12 @@ def screen_f2_l1_handoff(record):
         if not quantity.is_integer():
             raise HandoffError(f"{key}: count must be an integer")
         mass = _positive_number(item.get("unit_empty_mass_kg"), f"{key} mass")
-        _positive_number(item.get("rated_pressure_bar_absolute"), f"{key} pressure")
+        rated = _positive_number(item.get("rated_pressure_bar_absolute"), f"{key} pressure")
+        # Storage vessel MAWP must bound the stated maximum gas pressure.
+        # Other equipment may occupy independently regulated lower-pressure sections;
+        # their segment design pressures require a separate P&ID review.
+        if key == "pressure_vessels" and rated < pmax:
+            raise HandoffError("pressure_vessels: rated pressure below maximum storage pressure")
         if not isinstance(item.get("manufacturer_part"), str) or not item["manufacturer_part"].strip():
             outstanding.append(f"{key}: manufacturer part not identified")
         if not _source(item.get("source"), key):
