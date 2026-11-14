@@ -1,0 +1,43 @@
+name: F3-D observed-year source admission — ENTSOE A44 NL + ERA5 2022/2024 strict offline provenance guard
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3d_external_observed_year_private_intake.py'
+      - 'tests/test_f3d_external_observed_year_private_intake.py'
+      - 'research/F3_D_ALTERNATIVE_OBSERVED_2022_2024_ENTSOE_ERA5_PRIVATE_SOURCE_ADMISSION_v1.json'
+      - '.github/workflows/f3d-observed-2022-2024-source-admission.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mandatory_source_no_simulated_2022_2024_year_accepted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Verify 2022/2024 UTC strict calendar, leap year, exact source turbine farm cap, negative NL prices and no raw provider placeholders
+        run: |
+          python -m pytest -q tests/test_f3d_external_observed_year_private_intake.py tests/test_f3d_2023_source_hourly_counterfactuals.py
+      - name: Verify the actual externally observed source evidence gate has NOT been passed with fake files
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("research/F3_D_ALTERNATIVE_OBSERVED_2022_2024_ENTSOE_ERA5_PRIVATE_SOURCE_ADMISSION_v1.json")
+          m=json.loads(p.read_text())
+          assert m["schema_version"]=="oem.ptx.f3d_alternative_observed_2022_2024_entsoe_era5_private_source_admission.v1"
+          assert m["years_requested"]==[2022,2024]
+          assert m["current_total_accepted_alternative_year_price_and_wind_pairs"]==0
+          assert m["independent_historical_year_source_files_downloaded_and_verified"] is False
+          assert not m["provider_price"]["provider_API_access_authorization_verified"]
+          assert not m["provider_wind"]["provider_CDS_access_accepted"]
+          assert m["year_requirements"]["2022"]["expected_UTC_hours"]==8760
+          assert m["year_requirements"]["2024"]["expected_UTC_hours"]==8784
+          assert m["baseline_original_2023_consistency_proof"]["2023_ERA5_raw_rederivation_and_calibration_against_source_float64_SHA_verified_for_external_year_pipeline"] is False
+          assert m["full_F3_and_L3_v1_release_eligible"] is False
+          print("PASS: truthful year 2022/2024 source acquisition NOT completed; validation pipeline and negative tests ready; no false actual new-year robustness.")
+          PY
