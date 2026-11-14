@@ -58,7 +58,7 @@ jobs:
           unzip -q /tmp/f3d_LP_source/StageA.zip -d /tmp/f3d_LP_stageA
           test -s "/tmp/f3d_LP_stageA/${MODE}_E_hourly_additional_shortfall.json"
           echo "Original 2023 E+ES+source physical Stage A inputs authenticated; no source raw data published."
-      - name: Same model, source 2023 8,760h and exact pressure screen: remove ONLY binary integrality, set zero feasibility objective
+      - name: Same model 2023 8760h source exact pressure LP relaxed binary and zero feasibility objective
         shell: bash
         run: |
           set -euo pipefail
