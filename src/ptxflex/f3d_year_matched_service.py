@@ -62,7 +62,7 @@ def load_source_parameters():
     src=r["source"]
     require(src["E_original_zip_sha256"]==E_SHA and
             src["E_plus_S_original_zip_sha256"]==ES_SHA and
-            src["source_parameters_independently_read_from_pinned_archives"] is True,
+            r["science_claims"]["source_parameters_independently_read_from_pinned_archives"] is True,
             "original 2023 E/E+S source registry not certified")
     require(r["original_h2_demand_kg_per_day"]==SERVICE_CONTRACT_KG_DAY,
             "changed reference flat demand")
