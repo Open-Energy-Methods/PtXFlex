@@ -1,0 +1,23 @@
+name: F3-D Type-I gas-pressure source model readiness (synthetic-only)
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3d_year_matched_service.py'
+      - 'tests/test_f3d_year_matched_service.py'
+      - 'tests/test_f3d_year_service_typeI_coolprop_pressure.py'
+      - '.github/workflows/f3d-year-physical-readiness.yml'
+permissions:
+  contents: read
+jobs:
+  real_gas_model_regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e '.[dev,physics]'
+      - name: Real CoolProp 200 bar EOS, screened Type I vessel energy and MILP model tests
+        run: python -m pytest -q tests/test_f3d_year_service_typeI_coolprop_pressure.py tests/test_f3d_year_matched_service.py
