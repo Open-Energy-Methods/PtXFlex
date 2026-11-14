@@ -1,0 +1,121 @@
+name: F3-D — source-2023 price/wind 8760h counterfactual matched-service pressure MILP sensitivity
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3d_2023_source_hourly_counterfactuals.py'
+      - 'tests/test_f3d_2023_source_hourly_counterfactuals.py'
+      - 'research/F3_D_2023_SOURCE_DERIVED_PRICE_WIND_COUNTERFACTUAL_PROTOCOL_v1.json'
+      - '.github/workflows/f3d-source-2023-price-wind-stress.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original_2023_ERA5_wind_and_ENTSOE_NL_wholesale_source_derived_economic_stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        mode: ['max_inventory','usable_service']
+        scenario: ['price_circular_168h','price_centered_spread_150','wind_090_multiplier','wind_110_multiplier']
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MODE: ${{ matrix.mode }}
+      SCENARIO: ${{ matrix.scenario }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install verified SciPy/HiGHS and real-gas CoolProp science model
+        run: |
+          python -m pip install -e '.[dev,original-sources,physics]'
+      - name: F3-D negative source-year, price/wind and anti-fabrication tests
+        run: |
+          python -m pytest -q tests/test_f3d_2023_source_hourly_counterfactuals.py tests/test_f3_pressure_matched_service.py
+      - name: Retrieve SHA-registered original PyNEXUS E, ES and F3C Stage A source data privately without redistribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/f3d_orig /tmp/f3d_stageA outputs
+          if [ "$MODE" = max_inventory ]; then
+            STAGE_ID=14084348674
+            STAGE_SHA=6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8
+          else
+            STAGE_ID=14084937031
+            STAGE_SHA=18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd
+          fi
+          echo "STAGE_SHA=$STAGE_SHA" >> "$GITHUB_ENV"
+          for item in "12612294862 E.zip abhijith-sivaprasadan/PyNEXUS" "12613045475 ES.zip abhijith-sivaprasadan/PyNEXUS" "$STAGE_ID StageA.zip Open-Energy-Methods/PtXFlex"; do
+            set -- $item
+            curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$3/actions/artifacts/$1/zip" -o "/tmp/f3d_orig/$2"
+          done
+          echo "069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051  /tmp/f3d_orig/E.zip" | sha256sum --check
+          echo "cd4101fe62c3f1b8aa2d7508d3651d2fee40d5f4d055070f9  /tmp/f3d_orig/ES.zip" | sha256sum --check
+          echo "$STAGE_SHA  /tmp/f3d_orig/StageA.zip" | sha256sum --check
+          unzip -q /tmp/f3d_orig/StageA.zip -d /tmp/f3d_stageA
+          test -s "/tmp/f3d_stageA/${MODE}_E_hourly_additional_shortfall.json"
+          echo "Source 2023 E/ES/Stage A original bytes verified. This workflow does NOT import a new observed year."
+      - name: Reoptimize source-2023 E and E+S full 8760h 200bar model at the EXACT identical H2 hour targets for this stress
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ptxflex.f3d_2023_source_hourly_counterfactuals \
+            --E /tmp/f3d_orig/E.zip --ES /tmp/f3d_orig/ES.zip \
+            --hourly-stageA "/tmp/f3d_stageA/${MODE}_E_hourly_additional_shortfall.json" \
+            --stageA-archive-sha256 "$STAGE_SHA" \
+            --mode "$MODE" --scenario "$SCENARIO" --time-limit 720 \
+            --output "outputs/F3_D_2023_${MODE}_${SCENARIO}_COUNTERFACTUAL_NOT_other_observed_year.json"
+      - name: Produce auditable no-price-redistribution source provenance and source financial bound result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,base64,hashlib,json,pathlib,math
+          mode=os.environ["MODE"];scenario=os.environ["SCENARIO"]
+          p=pathlib.Path("outputs")/f"F3_D_2023_{mode}_{scenario}_COUNTERFACTUAL_NOT_other_observed_year.json"
+          raw=p.read_bytes();d=json.loads(raw)
+          assert d["schema_version"]=="ptxflex.f3d_2023_source_hourly_joint_price_wind_paired_equalH2_counterfactual_stress.v1"
+          assert d["source_observed_year"]==2023 and d["scenario_id"]==scenario and d["capacity_semantics"]==mode
+          assert d["original_source_E_archive_SHA256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["original_source_ES_archive_SHA256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d5f4d055070f9"
+          assert d["counterfactual_not_an_independently_verified_historical_weather_or_market_year"]
+          assert d["source_stageA_shortage_constructive_not_globally_minimal"]
+          assert d["same_source_2023_h2_product_service_and_market_wind_for_E_ES"]
+          assert not d["actual_new_2022_or_2024_observed_pairing"]
+          assert d["original_full_contract_H2_still_unserved_kg"]>1914720
+          assert d["manufacturer_fully_installed_20t_incremental_storage_CAPEX_eur"] is None
+          assert d["matched_native_BAFU_GWP_per_kg_H2"] is None
+          assert d["actual_incremental_non_grid_opex_eur"] is None
+          assert not d["whole_plant_economic_GWP_and_v1_0_release_PASSED"]
+          for c in ("E","E_plus_S"):
+              a=d[c]
+              if a["solver_outcome"]=="CERTIFIED_HIGHS_RELATIVE_GAP_LE_1E6":
+                  assert a["maximum_independent_hourly_residual"]<2e-4
+                  assert abs(a["modelled_H2_delivered_kg"]-d["source_same_hourly_modelled_H2_year_kg"])<.002
+                  assert a["source_TypeI_screened_200bar_pressure_OK"]
+              else:
+                  assert a["cost_modelled_counterfactual_eur2023"] is None or a["solver_outcome"]=="FEASIBLE_BUT_UNCERTIFIED"
+          if d["both_H2_source_cases_certified_MIP_gap_le_1e6"]:
+              lo,hi=d["paired_modelled_source_HiGHS_error_saving_bounds_eur2023"]
+              s=d["paired_modelled_incremental_EplusS_wholesale_saving_eur2023_COUNTERFACTUAL_not_forecast"]
+              assert lo<=s+1e-3<=hi+1e-3
+          else:
+              assert d["paired_modelled_incremental_EplusS_wholesale_saving_eur2023_COUNTERFACTUAL_not_forecast"] is None
+              assert d["paired_modelled_source_HiGHS_error_saving_bounds_eur2023"] is None
+          print("F3_D_STRESS_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F3_D_STRESS_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: real 2023 source hashes, source-only meteorological/price adjustments, matched-H2 physical solver results and feasibility integrity. Not actual additional observed years.")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: F3-D-2023-SOURCE-derived-NOT-OBSERVED-new-year-${{ matrix.mode }}-${{ matrix.scenario }}
+          path: outputs/
+          retention-days: 90
