@@ -116,6 +116,37 @@ jobs:
                   assert r["native_full_system_GWP_kgCO2e"] is None
           print("Source-locked Stage A mathematical shortage bounds certified; no LCA/TEA claim.")
           PY
+      - name: Independently authenticate 8760h source-hourly evidence bytes against certified digest
+        run: |
+          python - <<'PY'
+          import hashlib,json,os,pathlib,re
+          root=pathlib.Path("outputs/F3_original_2023_real_gas_adequacy")
+          mode=os.environ["CAPACITY_MODE"]
+          case=os.environ["STUDY_CASE"]
+          summary=json.loads((root/"stageA_2023_source_pressure_adequacy.json").read_text())
+          cert=json.loads((root/"stageA_additional_shortfall_certified_interval.json").read_text())
+          s=summary["scenario_results"][mode][case]
+          c=cert["cases"][mode][case]
+          if c["status"]=="NOT_CERTIFIED":
+              assert "hourly_evidence_sha256" not in c
+              print("SOURCE_CASE_NOT_CERTIFIED: no digest or full-plant claim")
+          else:
+              expected=c["hourly_evidence_sha256"]
+              assert re.fullmatch("[0-9a-f]{64}",expected)
+              assert s["hourly_evidence_sha256"]==expected
+              p=root/(mode+"_"+case+"_hourly_additional_shortfall.json")
+              raw=p.read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==expected
+              assert raw.endswith(b"\\n")
+              obj=json.loads(raw)
+              assert len(obj["hourly_additional_shortfall_kg"])==8760
+              assert obj["derived_source_not_original_raw_prices_or_wind"] is True
+              assert obj["source_E_delivered_reference_profile_is_modelled"] is True
+              print("SOURCE_CASE=",mode,case)
+              print("SOURCE_HOURLY_TRACE_SHA256=",expected)
+              print("SOURCE_TRACE_BYTE_COUNT=",len(raw))
+              print("SOURCE_STAGE_A_ARTIFACT_REQUIRES_POST_UPLOAD_ZIP_DIGEST_PIN=True")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
