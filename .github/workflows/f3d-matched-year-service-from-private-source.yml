@@ -1,5 +1,8 @@
 name: F3-D matched E/E+S full-year H2 service and price-wind MILP (PRIVATE SOURCES)
 on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths: ['research/F3_D_SOURCE_PAIR_READY_TRIGGER.json']
   workflow_dispatch:
     inputs:
       upstream_run_id:
@@ -11,7 +14,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: f3d-independent-year-milp-${{ github.event.inputs.upstream_run_id }}
+  group: f3d-independent-year-milp-${{ inputs.upstream_run_id || '43617006319' }}
   cancel-in-progress: false
 jobs:
   independent_source_year_model_tests:
@@ -23,9 +26,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install hermetic model dependencies (no API secrets exposed here)
-        run: python -m pip install -e '.[dev]'
+        run: python -m pip install -e '.[dev,physics]'
       - name: Verify frozen source parameters, integer model mathematics, calendar and proof bounds
-        run: python -m pytest -q tests/test_f3d_year_matched_service.py tests/test_f3d_external_2024_calendar_solver.py
+        run: python -m pytest -q tests/test_f3d_year_matched_service.py tests/test_f3d_year_service_typeI_coolprop_pressure.py tests/test_f3d_external_2024_calendar_solver.py
   pressure_screened_year_milp:
     needs: independent_source_year_model_tests
     runs-on: ubuntu-latest
@@ -48,7 +51,7 @@ jobs:
         with:
           name: private-F3D-entsoe-original-${{ matrix.year }}-NOT-releasable
           repository: Open-Energy-Methods/PtXFlex
-          run-id: ${{ inputs.upstream_run_id }}
+          run-id: ${{ inputs.upstream_run_id || '43617006319' }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/price-year/
       - name: Retrieve year-original ERA5 four-component NetCDF and normalized offshore wind
@@ -56,7 +59,7 @@ jobs:
         with:
           name: private-F3D-era5-original-${{ matrix.year }}-NOT-releasable
           repository: Open-Energy-Methods/PtXFlex
-          run-id: ${{ inputs.upstream_run_id }}
+          run-id: ${{ inputs.upstream_run_id || '43617006319' }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/wind-year/
       - name: Retrieve independent ORIGINAL 2023 A44 market-calibration archive
@@ -64,7 +67,7 @@ jobs:
         with:
           name: private-F3D-entsoe-original-2023-NOT-releasable
           repository: Open-Energy-Methods/PtXFlex
-          run-id: ${{ inputs.upstream_run_id }}
+          run-id: ${{ inputs.upstream_run_id || '43617006319' }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/price-ref/
       - name: Retrieve independent ORIGINAL 2023 ERA5 wind-calibration archive
@@ -72,7 +75,7 @@ jobs:
         with:
           name: private-F3D-era5-original-2023-NOT-releasable
           repository: Open-Energy-Methods/PtXFlex
-          run-id: ${{ inputs.upstream_run_id }}
+          run-id: ${{ inputs.upstream_run_id || '43617006319' }}
           github-token: ${{ github.token }}
           path: ${{ runner.temp }}/wind-ref/
       - name: Independent full year original-source SHAs, E max feasible flat H2, exact E/ES service and MILP bounds
