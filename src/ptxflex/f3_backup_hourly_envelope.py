@@ -22,6 +22,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .f3_backup_supply_duty import derive_incumbent_supply_envelope
+
 SCHEMA="ptxflex.F3_2023_hypothetical_source_hourly_H2_backup_load_envelope.v1"
 SOURCE_E="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
 SOURCE_ES="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
@@ -107,6 +109,9 @@ def source_hourly_backup_envelope(cert,trace,mode):
         raise BackupEnvelopeError("original source shortfall-hour count does not match")
     spans=_consecutive_events(mask)
     rolling_24=np.convolve(a,np.ones(24),mode="valid")
+    duty=derive_incumbent_supply_envelope(a)
+    if abs(duty["annual_hypothetical_topup_kg"]-hi)>2e-4:
+        raise BackupEnvelopeError("independent engineering duty annual source mass mismatch")
     return {
       "schema_version":SCHEMA,
       "programme":"OEM-PTX-2026-01",
@@ -126,6 +131,7 @@ def source_hourly_backup_envelope(cert,trace,mode):
       "single_incumbent_hypothetical_topup_annual_kg":float(np.sum(a)),
       "single_incumbent_hypothetical_topup_max_kg_per_hour":float(np.max(a)),
       "single_incumbent_hypothetical_topup_24h_peak_kg":float(np.max(rolling_24)),
+      "single_incumbent_source_hourly_supply_duty":duty,
       "single_incumbent_hypothetical_topup_occupied_hours":int(np.sum(mask)),
       "single_incumbent_contiguous_event_count":len(spans),
       "single_incumbent_longest_event_hours":max((end-start+1 for start,end in spans),default=0),
