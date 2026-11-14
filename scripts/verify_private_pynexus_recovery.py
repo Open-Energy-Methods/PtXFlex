@@ -16,10 +16,16 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from preserve_pynexus_evidence import (
-    REGISTER, SOURCE_REPO, EXPIRES, EvidenceEscrowError,
-    legal_destination, valid_archive, file_sha256,
-)
+if __package__:
+    from .preserve_pynexus_evidence import (
+        REGISTER, SOURCE_REPO, EXPIRES, EvidenceEscrowError,
+        legal_destination, valid_archive, file_sha256,
+    )
+else:  # Local direct invocation from the scripts/ directory.
+    from preserve_pynexus_evidence import (
+        REGISTER, SOURCE_REPO, EXPIRES, EvidenceEscrowError,
+        legal_destination, valid_archive, file_sha256,
+    )
 
 
 def verify_pair(primary,secondary,*,make_secondary=False):
