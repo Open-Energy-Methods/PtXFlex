@@ -63,3 +63,12 @@ The top-up equality is an **identity**, not a demonstrated source of physically 
 5. **Comparison/robustness:** same annual and hourly H2 service, pressure and purity, source-pinned GWP method and DCF with uncertainty and independent critical review; no industrial installation claim.
 
 **Status:** This is an F3 **source-backed backup-service requirement** milestone, not completed F2/L1/L2/L3, not completed comparison, and not v1.0.
+
+
+## 14 November 2026 — additional source-hourly supply-duty audit (pending rerun)
+
+The Stage B code now computes independent, sliding **1, 6, 24, 72 and 168 consecutive-hour** sums, their first peak 0-indexed source-hour locations, associated average supply flows, and within-year maximum positive/negative adjacent-hour changes. These are deterministic calculations on the same authenticated 8,760-hour source-modelled shortage trace. The implementation checks prefix-sum windows against independent direct convolutions, checks annual mass closure, and explicitly excludes any presumed year-boundary startup/shutdown ramps. No calendar-day approximation is substituted for a rolling 24-hour maximum.
+
+**Interpretation:** The hourly peak and maximum adjacent-hour ramp are required to follow *that specific Stage A feasible-incumbent profile without an upstream buffer*. They are **not** global lower bounds on any supplier rating: a co-optimized backup, an upstream buffer or a different feasible electrolyser dispatch could change the profile. Rolling-window average flows similarly describe that fixed schedule, not a certified equipment design. An externally sourced supplier's 20 bar absolute pressure, purity, deliverability, reserve, transport and emissions remain unknown.
+
+**Verification status:** The new source-pinned Stage B workflow must pass against both existing SHA-verified Stage A artifacts before the new window/ramp values can be reported as original-2023-derived numerical evidence. The earlier published annual/peak-hour findings are not replaced or revised by synthetic tests. Neither F3 nor the full v1.0 scientific gate is passed by this increment.
