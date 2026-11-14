@@ -73,3 +73,32 @@ def test_incomplete_original_source_manifest_rejected(tmp_path,monkeypatch):
     meta_path.write_text(json.dumps(meta))
     with pytest.raises(old.EvidenceEscrowError,match="not completely"):
         rec.verify_pair(root,other,make_secondary=True)
+
+
+
+def test_hardlinked_secondary_is_not_independent_backup(tmp_path, monkeypatch):
+    """Two valid ZIP paths pointing to the same inode are only one physical copy."""
+    import os
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    for entry in registry.values():
+        os.link(root / entry["filename"], other / entry["filename"])
+    with pytest.raises(old.EvidenceEscrowError, match="same file/inode"):
+        rec.verify_pair(root, other)
+
+
+def test_symlinked_secondary_is_not_independent_backup(tmp_path, monkeypatch):
+    """A symlink to an original ZIP cannot satisfy the recovery-copy contract."""
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    for entry in registry.values():
+        (other / entry["filename"]).symlink_to(root / entry["filename"])
+    with pytest.raises(old.EvidenceEscrowError, match="symbolic links"):
+        rec.verify_pair(root, other)
+
+
+def test_actual_copied_zip_has_distinct_inode(tmp_path, monkeypatch):
+    """The synthetic-copy success path is not rejected by alias checks."""
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    rec.verify_pair(root, other, make_secondary=True)
+    for entry in registry.values():
+        a, b = root / entry["filename"], other / entry["filename"]
+        assert (a.stat().st_dev, a.stat().st_ino) != (b.stat().st_dev, b.stat().st_ino)
