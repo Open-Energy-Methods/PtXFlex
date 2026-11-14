@@ -45,7 +45,7 @@ def verify_pair(primary,secondary,*,make_secondary=False):
         if not directory.is_dir():
             raise EvidenceEscrowError("private storage must be a directory")
     manifest=p/"PRIVATE_original_2023_source_provenance.json"
-    if not manifest.is_file():
+    if manifest.is_symlink() or not manifest.is_file():
         raise EvidenceEscrowError("first private escrow manifest missing; run existing source preservation script")
     meta=json.loads(manifest.read_text(encoding="utf-8"))
     if (meta.get("schema_version")!="oem.ptx.original_2023_evidence_private_escrow.v1.0"
@@ -70,6 +70,8 @@ def verify_pair(primary,secondary,*,make_secondary=False):
                 or recorded[key].get("file_bytes")!=a.stat().st_size):
             raise EvidenceEscrowError("original private provenance manifest bytes inconsistent")
         b=s/item["filename"]
+        if b.is_symlink():
+            raise EvidenceEscrowError("source escrow archives must be regular files, not symbolic links")
         if not b.is_file():
             if not make_secondary:
                 raise EvidenceEscrowError("secondary restoration copy missing "+key)
