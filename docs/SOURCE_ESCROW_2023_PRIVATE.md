@@ -36,3 +36,29 @@ This code **will not** save original data inside the GitHub repository working t
 Keep a *second local private backup* with a cryptographically verified checksum on different storage, subject to the original source licences. Re-run \`--verify-only\` after moving the original files. For collaborators who cannot be supplied raw provider data under their licence, publish derived permitted summaries, unit/operation code and a source-acquisition recipe instead.
 
 **Do not call P0 PASSED until** both E and E+S original ZIPs and original A44 provider archive have been independently verified and preserved in appropriate lawful archival storage, with a documented recovery test and who can access them. GitHub Actions' temporary artifact retention is not archival preservation.
+
+
+## P0 update — two-copy private recovery control (14 November 2026)
+
+The existing [original archive preservation script](../scripts/preserve_pynexus_evidence.py) verifies the **original frozen SHA256 and ZIP CRC** for E, E+S and original A44 XML, and creates a private, non-Git manifest. A [second independent offline verification tool](../scripts/verify_private_pynexus_recovery.py) now checks whether a separate copy of **all three** original archives can be restored byte-identically. It rejects a missing primary manifest, altered SHA, bad ZIP, missing archive, incompatible reference, same/nested directory and unknown licence status. It does **not** upload any provider source records.
+
+From the PtXFlex development branch on Windows PowerShell **after the original private primary archive has been retrieved**:
+
+~~~powershell
+# Example: first private copy on D:, second external private volume E:
+python scripts/verify_private_pynexus_recovery.py `
+  --primary "D:\PrivateResearch\PyNEXUS_original_2023" `
+  --secondary "E:\IndependentResearchBackup\PyNEXUS_original_2023" `
+  --copy-secondary `
+  --strict-different-device
+
+# Repeat without copy, to perform an independent recovery/verification later.
+python scripts/verify_private_pynexus_recovery.py `
+  --primary "D:\PrivateResearch\PyNEXUS_original_2023" `
+  --secondary "E:\IndependentResearchBackup\PyNEXUS_original_2023" `
+  --strict-different-device
+~~~
+
+The tool deliberately **does not certify legal rights or mark P0 PASSED**: `full_P0_release_gate_passed=false` and `licence_conditions_and_permitted_redistribution_independently_reviewed=false` remain explicit even after two identical copies exist. Separate directories on a single physical filesystem are **not** an independent backup; the `--strict-different-device` flag fails rather than misreporting such a condition. A synchronized cloud location may need separate provider-side version/recovery evidence.
+
+**Current state:** synthetic tests of the two-copy tool pass; no user-specific private destination was supplied, and the three original ZIP files have **not** been demonstrated as durably preserved in two independent private locations in this session. The existing register states a 2026-12-24 artifact expiry; this is the programme's documented retrieval deadline, **not a fresh live verification of GitHub retention policy**. An actual local verified primary + independent recovery copy, dated restoration test and licence review are still urgent P0 acceptance evidence. Never commit original ENTSO-E XML or other provider records to this public programme.
