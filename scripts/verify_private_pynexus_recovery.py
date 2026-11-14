@@ -3,8 +3,9 @@
 
 This tool NEVER downloads or publishes original provider data. It validates
 sha256 + ZIP CRC for the THREE source registry originals and optionally
-creates a second SHA-audited copy outside Git. Separate directories do NOT
-prove independent storage devices; distinct st_dev is checked explicitly.
+creates a second SHA-audited copy outside Git. Separate directories and distinct filesystem device IDs do NOT prove
+independent physical storage devices. st_dev is a minimum filesystem check;
+physical drive separation, backup portability and restoration require review.
 Legal redistribution rights and independent reviewer signoff remain open.
 """
 from __future__ import annotations
@@ -91,7 +92,7 @@ def verify_pair(primary,secondary,*,make_secondary=False):
             "filenames_identical_to_original_private_registry":True,
             "raw_content_uploaded_or_returned":False,
         }
-    distinct_storage_devices=p.stat().st_dev!=s.stat().st_dev
+    different_filesystem_id=p.stat().st_dev!=s.stat().st_dev
     return {
         "schema_version":"oem.ptx.private_two_copy_restoration_verification.v1",
         "verified_at_utc":datetime.now(timezone.utc).isoformat(),
@@ -99,8 +100,10 @@ def verify_pair(primary,secondary,*,make_secondary=False):
         "registered_source_action_artifacts_expiration_not_live_reverified":EXPIRES,
         "all_three_original_source_archives_sha_and_crc_verified_in_two_directories":True,
         "separate_root_directories_eligible":True,
-        "independent_storage_device_verified":distinct_storage_devices,
-        "same_device_not_independent_backup":not distinct_storage_devices,
+        "different_filesystem_device_id_verified":different_filesystem_id,
+        "same_filesystem_not_independent_backup":not different_filesystem_id,
+        "independent_physical_storage_device_verified":False,
+        "independent_physical_device_requires_manual_verification":True,
         "second_copy_location": "PRIVATE_OUTSIDE_GIT_NOT_DISCLOSED",
         "primary_copy_location":"PRIVATE_OUTSIDE_GIT_NOT_DISCLOSED",
         "licence_conditions_and_permitted_redistribution_independently_reviewed":False,
@@ -120,8 +123,8 @@ def main(argv=None):
                     help="fail if both directories are on the same storage device")
     args=ap.parse_args(argv)
     report=verify_pair(args.primary,args.secondary,make_secondary=args.copy_secondary)
-    if args.strict_different_device and not report["independent_storage_device_verified"]:
-        raise EvidenceEscrowError("two verified private folders are on the SAME physical filesystem/device")
+    if args.strict_different_device and not report["different_filesystem_device_id_verified"]:
+        raise EvidenceEscrowError("two verified private folders have the SAME filesystem device identifier")
     # Print ONLY provenance and boolean checks. No private paths, raw files or API token.
     print(json.dumps(report,sort_keys=True,indent=2,allow_nan=False))
 
