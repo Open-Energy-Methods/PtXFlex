@@ -96,8 +96,8 @@ jobs:
           raw=p.read_bytes();d=json.loads(raw)
           assert d["schema_version"]=="ptxflex.f3C_2023_source_pressure_screen_equal_hourly_reduced_service.v1"
           assert d["source_original_8760_hours"]==8760
-          assert d["source_original_E_archive_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
-          assert d["source_original_EplusS_archive_sha256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert d["original_source_E_archive_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["original_source_EplusS_archive_sha256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
           assert d["same_original_2023_weather_and_A44_price_every_hour"]
           assert d["common_hourly_modelled_H2_delivery_strict"]
           assert d["source_StageA_incumbent_not_proven_globally_minimum"] and not d["global_common_service_selection_optimal"]
