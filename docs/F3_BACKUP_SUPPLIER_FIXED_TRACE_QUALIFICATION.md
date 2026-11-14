@@ -27,3 +27,37 @@ The method recomputes the canonical Stage A trace digest, checks finite nonnegat
 A genuine supplier offer needs independently documented country/technology/year, hydrogen composition and delivered pressure, available hourly flow, outages and ramp behavior, transmission and compression, contract and costs, manufacturing/installation inventory and the corresponding native BAFU v1.1 process units. No private BAFU inventory is copied here. The F2 vessel pressure/gauge and compressor maps, L1 stationary manufacturing BOM, F3 full-source service, L2 full GWP, L3 discounted TEA and X1/X2 review gates remain open.
 
 This screen cannot validate an E vs E+S environmental superiority claim, prove a minimum backup rating, or justify a v1.0 release.
+
+## Independent CI failure diagnosis and correction — 2026-11-14
+
+Before this correction, both MILP verification jobs at GitHub Actions run
+[43563399469](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43563399469)
+failed: **3 failed, 99 passed, 5 skipped**. The three failures were all in
+`tests/test_f3_backup_offer_screen.py`, and came from an incorrect *test
+oracle*, not a verified physical-supplier failure. The fixture has hourly
+shortfalls `[10,20,10,5]` kg/h and zero flow immediately before and after.
+Its largest **adjacent hourly change** is 10 kg/h, not its **peak flow**
+of 20 kg/h. Consequently, the purported rejection of a 19 kg/h/h ramp
+limit was invalid; that limit actually admits the 10 kg/h/h fixture.
+
+The corrected tests use a 10 kg/h/h ramp expectation and a 9 kg/h/h
+rejecting threshold. Additional tests independently check the 10 vs 9.999
+threshold and confirm the 2023 year is **not** silently treated as a cyclic
+2022/2024 boundary. These are synthetic verification fixtures, not original
+2023 dispatch. Correcting the test expectation does not establish
+industrial compressor/supplier dynamics.
+
+Correction commit:
+[58d641c](https://github.com/Open-Energy-Methods/PtXFlex/commit/58d641cdf22a371670bf7d041e3a1ea9a224bf1b).
+CI runs:
+[43567814582](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43567814582)
+and
+[43567810981](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43567810981).
+They must complete successfully before the regression is called CI-certified.
+The F3 scientific gate remains **NOT_PASSED** regardless of test outcome.
+
+**Further qualification limit:** The input `pressure_and_purity_independently_documented=True`
+is a caller-supplied Boolean, not independently inspected supplier documentation.
+The screening pass therefore describes *mathematical eligibility under claimed
+input documentation*, not independent supplier verification. Do not use the
+screen's pass flag as a release, LCA, TEA or physical procurement gate.
