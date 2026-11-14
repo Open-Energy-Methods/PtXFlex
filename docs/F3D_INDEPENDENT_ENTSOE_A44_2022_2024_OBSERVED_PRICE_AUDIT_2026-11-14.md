@@ -15,7 +15,7 @@ The independently read original 2023 price SHA exactly equals the registered fro
 ## Scientific release gates
 
 - ENTSO-E NL 2022/2023/2024 source-purity and full UTC calendar: **locally verified**.
-- Source A03 XML-versus processed hour-by-hour numerical price equality: the 2023 original source fingerprint matches; direct independent A03 source-expansion for each of 2022/2024 and full raw-to-normalized checks **remain to be separately rerun**, beyond manifest checks.
+- Source A03 XML-versus processed hour-by-hour price equality: **independently verified for 2022/2023/2024.** All original source documents were reparsed from XML, source-encoded A03/A01 price blocks expanded to 15-minute resolution, then strictly compared against all 8,760 / 8,760 / 8,784 UTC normalized price hours: **zero mismatches for each year**. Original manifests and all 42 individual XML document hashes were also verified. These checks are independent of the retrieval-side normalized CSV generator.
 - ERA5 2023 original wind SHA reproduction: **pending**.
 - 2022/2024 complete joint ERA5/A44 observed source-year input: **pending**.
 - Proper source-year physically feasible matched hourly H₂ service and independently certified E and E+S MILP solver comparison: **not yet done**.
@@ -25,4 +25,4 @@ The independently read original 2023 price SHA exactly equals the registered fro
 
 Private source ZIPs uploaded in owner-only Google Drive folder for user's archival access: https://drive.google.com/drive/folders/1DUUCaClrNXnNPrz6XWCGviHWup7NOOP_. This is one storage location (not a demonstrated independent two-media P0 recovery test). All original XML/hourly arrays stay out of the repository.
 
-The complete summary is reproducible from original artifact ZIP manifests and `normalized_UTC_price.csv` under strictly private original-source storage. Do not infer observed annual provider sources from the 2023 source-derived F3-D controlled perturbations, and do not claim a full source provenance chain solely from internal manifests.
+The complete summary and independent XML comparison are reproducible from original artifact ZIP manifests and `normalized_UTC_price.csv` under strictly private original-source storage. Do not infer observed annual provider sources from the 2023 source-derived F3-D controlled perturbations, and do not claim a full source provenance chain solely from internal manifests.
