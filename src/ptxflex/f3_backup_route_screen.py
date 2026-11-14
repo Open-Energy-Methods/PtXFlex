@@ -231,7 +231,8 @@ def evaluate_physical_routes(*,registry_path=SOURCE_REGISTRY,results_directory=R
                 "additional_on_site_electrolysis": {
                     "priority":"EXPANSION_OPTION_NOT_A_FREE_BACKUP",
                     "status":"ADDITIONAL_ELECTRICAL_CONNECTION_AND_WATER_AND_PEM_CAPEX_UNSOURCED",
-                    "additional_grid_interconnection_available":False,
+                    "additional_grid_interconnection_available":None,
+                    "additional_grid_interconnection_verified":False,
                     "additional_peaking_PEM_firm_electricity_MW":None,
                     "additional_electrolyser_and_cooling_LCI":None
                 }
