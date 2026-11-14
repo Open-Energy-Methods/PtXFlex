@@ -37,3 +37,18 @@ Source references: [F3 physical-pressure audit](F3_2023_PHYSICAL_200BAR_FEASIBIL
 - The Stage B matrix still references obsolete artifacts 14084348674 and 14084937031. **Do not mark Stage B passed or alter its strict validation** until the new successful Stage A E-case artifact IDs and downloaded ZIP SHA-256 values have been recorded and pinned. No derived backup provider, pressure-quality compliance, ramping, costs or GWP is known.
 
 **Scientific status:** Stage A hash verification is an *integrity gate*, not a physically sourced backstop. All F2/F3/L1/L2/L3 scientific acceptance gates remain open; both original-source hourly hydrogen and future Stage B top-up remain modelled engineering quantities, not metered plant measurements.
+
+## 2026-11-14 source Stage A success and Stage B immutable re-pin
+
+The fresh source-locked Stage A 8,760h run [43536654454](https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43536654454), head `489f009e164578c6eed972e0cc59cfed1ee0bd2d`, **completed successfully for all four combinations** of source model case E/E+S and physical vessel capacity interpretation max-inventory/usable-service. It retrieved original PyNEXUS source ZIPs, retained the known original E/E+S SHA-256 identities, passed the source-pressure and trace-integrity CI checks, and uploaded four independently named artifacts. This establishes source-derived numerical evidence, **not** measured industrial service or complete pressure-system adequacy.
+
+GitHub Actions artifact metadata (SHA-256 of artifact ZIP) for the exact two original E inputs required by Stage B:
+
+| Stage A E scenario | Immutable artifact ID | Artifact ZIP SHA-256 | Source workflow |
+|---|---:|---|---|
+| max_inventory | 14089972401 | `3ea60fb58c49f34c33614bfb05a294020707ebcc24d7af570cb6ab701d7eb6c8` | 43536654454 |
+| usable_service | 14090181835 | `f3299f4185efe0f9ff733dd1ab807d1db02f11c08d1a2f717cffb89d009aa43c` | 43536654454 |
+
+The other two Stage A E+S artifacts are max_inventory 14089996607 (`5b2ad1f4faef349cca7c1bded9bfecf68f2ef168eee9461c4d9b370561b8e867`) and usable_service 14090455695 (`586de83cf19882d466170b1a5181610fa3d4a2f49cba6cb5e3b38f6df396899d`). All four were reported unexpired when checked. The Stage B CI workflow was repinned to the exact two E IDs and ZIP SHA-256 values in commit [dacce271](https://github.com/Open-Energy-Methods/PtXFlex/commit/dacce271ca80d4dafadc7581dd703810aa03a240). No legacy artifact digest or hourly content-addressed integrity check was waived.
+
+**Acceptance status:** Source Stage A CI PASS; Stage B must still be confirmed on the new pinned artifacts. The supplier's hourly delivery, purity, pressure, ramp, emissions and cost are not verified. F3, F2, L1, L2 and L3 gates remain NOT_PASSED; no full-plant LCA/TEA or comparative claim follows from these source-modelled H2 shortage traces.
