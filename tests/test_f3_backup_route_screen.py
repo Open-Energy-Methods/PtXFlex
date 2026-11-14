@@ -47,7 +47,7 @@ def test_reference_trailer_optimistic_payload_equivalents_not_vehicle_approvals(
     lambda r:r.update(customer_guaranteed_min_exit_pressure_bar_absolute=30),
     lambda r:r.update(external_supply_cost_EUR2023_per_kg=0),
     lambda r:r.update(externally_sourced_h2_specific_GWP_kgCO2e_per_kg=0),
-    lambda r:r.update(2023_site_transport_availability=True),
+    lambda r:r.__setitem__("2023_site_transport_availability",True),
     lambda r:r.update(matched_service_end_use_qualified=True),
     lambda r:r.update(pipeline_reference_not_exit_guarantee=False),
     lambda r:r.update(fixed_dispatch_model_delivery_pressure_bar_absolute=20.2),
