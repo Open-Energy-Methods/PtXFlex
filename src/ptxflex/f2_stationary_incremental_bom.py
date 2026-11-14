@@ -209,9 +209,12 @@ def case_mode(mode,record,source):
     delta_shell=delta*v["empty_vessel_mass_kg"]
     rack_count=es["paper_reference_25_vessel_racks_ceil"]-e["paper_reference_25_vessel_racks_ceil"]
     full_rack_extra_positions=rack_count*v["reference_vessels_per_paper_container"]
-    # Gross plant procurement equivalent of whole filled racks: NOT assured
-    # as installed, only an upper equipment-count variant if every new
-    # container must be bought with every slot filled.
+    # Alternate FULL-25-vessel-rack vs FULL-25-vessel-rack configuration;
+    # not a bound on the partial-vessel bank count. Both E and E+S baselines
+    # must be fully packed for rack-count-delta*25 to be meaningful. Because
+    # the E rack can have unused slots, this delta can be LESS than the
+    # incremental bare-cylinder count in the partly filled architecture.
+    # Never use it as a physical upper equipment-mass bound or real site plan.
     gross_modules=record["heisertec_cosmos_stationary_2026"]["vendor_example"]
     vendor_water_volume=gross_modules["water_volume_per_cylinder_l"]*gross_modules["cylinders_per_stationary_bundle"]/1000
     d200=hydrogen_density_kg_m3(200.,313.)
