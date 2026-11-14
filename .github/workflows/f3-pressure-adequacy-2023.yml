@@ -1,4 +1,7 @@
 name: F3 Stage A — original 2023 pressure-limited H2 adequacy and shortfall
+# 2026-11-14: regenerate source-locked Stage A artifacts after introducing
+# content-addressed full-hourly shortage evidence. Historical Stage B artifact
+# IDs cannot pass the new trace digest gate and must never be grandfathered.
 on:
   push:
     branches: ['feat/milp-methanol-baseline']
