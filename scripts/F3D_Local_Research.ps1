@@ -143,7 +143,7 @@ switch($Phase) {
    Write-Host "Original 2023 wind recovered:" (Test-Path (Join-Path $PrivateRoot "wind-2023-recovered\complete\provenance.json"))
    foreach($year in @(2022,2024)) {
      $passed=0
-     foreach($m in 1..12){ if(SourceOK $year $m){$passed++} }
+     foreach($m in 1..12){ try { if(SourceOK $year $m){$passed++} } catch { Write-Warning ("Unverified source month {0}-{1:d2}: {2}" -f $year,$m,$_.Exception.Message) } }
      Write-Host "ERA5 $year months verified: $passed / 12"
    }
  }
