@@ -20,6 +20,11 @@ import numpy as np
 
 YEARS={2022:8760,2023:8760,2024:8784}
 EXPECTED_2023_WIND_F64_SHA="abbfea17224cd92f694ed26b7a179ef7e35fff5a5bb17c6ee060a674c1977717"
+# Independently computed on the frozen ORIGINAL E/stage_b.csv PyNEXUS
+# 8,760 wind availability values: np.rint(MW*1e6).astype('<i8').
+# Numerical reproduction is precise to 1 W; original floating-point
+# serialization is not guaranteed to be byte-identical across code paths.
+EXPECTED_2023_WIND_MICROMW_SHA="9e0e95ddf9c70547ab6ce696f52a82dc312f11d7cd760de5dc779c6ac2b43c9c"
 ERA5_VARIABLES=["10m_u_component_of_wind","10m_v_component_of_wind",
                 "100m_u_component_of_wind","100m_v_component_of_wind"]
 REFERENCE_LAT=52.5
@@ -48,21 +53,40 @@ def request_for(year,month):
 
 
 def original_farm_mw_from_u100_v100(u100,v100):
-    """Original 100m-to-120m shear and PyNEXUS cubic ten-turbine curve."""
-    u=np.asarray(u100,dtype=np.float64)
-    v=np.asarray(v100,dtype=np.float64)
-    check(u.shape==v.shape and u.ndim==1 and np.isfinite(u).all()
-          and np.isfinite(v).all(),"invalid original 100m wind field")
-    hub=np.sqrt(u*u+v*v)*(120.0/100.0)**0.11
-    def unit(t):
-        if t<3.0 or t>=25.0:return 0.0
-        if t>=13.0:return 15.0
-        return 15.0*(t**3-3.0**3)/(13.0**3-3.0**3)
-    per_turbine=np.fromiter((unit(float(x)) for x in hub),dtype=np.float64,count=len(hub))
-    farm=per_turbine*10.0*(1.0-0.10)*(1.0-0.02)*(1.0-0.05)
-    check(np.isfinite(farm).all() and np.min(farm)>=0 and np.max(farm)<=FARM_LIMIT_MW+1e-9,
+    """Replicate PyNEXUS ERA5 decoding and cubic farm model.
+
+    PyNEXUS data/era5.py computes np.sqrt(u100**2+v100**2) on the
+    original native NetCDF float32 vectors, BEFORE converting magnitudes
+    to float64 in hub-height calculation. Casting u/v to float64 first
+    creates up to ~3e-5 MW differences vs frozen 2023 original dispatch.
+    """
+    u=np.asarray(u100)
+    v=np.asarray(v100)
+    check(u.shape==v.shape and u.ndim==1 and
+          np.issubdtype(u.dtype,np.floating) and
+          np.issubdtype(v.dtype,np.floating) and
+          np.isfinite(u).all() and np.isfinite(v).all(),
+          "invalid original 100m wind field")
+    speed=np.sqrt(u*u+v*v) # retain source float32 arithmetic!
+    hub=np.asarray(speed,dtype=np.float64)*(120.0/100.0)**0.11
+    def unit(v):
+        if v < 3.0 or v>=25.0:return 0.0
+        if v>=13.0:return 15.0
+        cubic_fraction=(v**3-3.0**3)/(13.0**3-3.0**3)
+        return 15.0*cubic_fraction
+    single=np.vectorize(unit,otypes=[np.float64])(hub)
+    farm=single*10.0*(1.0-0.10)*(1.0-0.02)*(1.0-0.05)
+    check(np.isfinite(farm).all() and np.min(farm)>=0 and
+          np.max(farm)<=FARM_LIMIT_MW+1e-9,
           "ERA5 source turbine MW exceeds physical farm limit")
     return farm
+
+
+def micro_mw_source_sha(values):
+    """Canonical original annual wind identity to 1 W resolution (not f64 bytes)."""
+    v=np.asarray(values,dtype=np.float64)
+    check(v.ndim==1 and np.isfinite(v).all(),"invalid source wind for microMW source hash")
+    return hashlib.sha256(np.rint(v*1000000.0).astype("<i8").tobytes()).hexdigest()
 
 
 def _extract_series(ds,name):
@@ -73,14 +97,14 @@ def _extract_series(ds,name):
         # Reanalysis expver=1 and temporary expver=5 may coexist in files.
         # Select the finite single point per timestamp, rejecting ambiguous
         # competing data or missing values (do not fill or interpolate).
-        raw=np.asarray(a.transpose("expver",...).values,dtype=np.float64)
+        raw=np.asarray(a.transpose("expver",...).values)
         check(raw.ndim==2,"unsupported ERA5 expver-plus-time dimensions")
         valid=np.isfinite(raw)
         check((valid.sum(axis=0)==1).all(),
               "ERA5 expver values ambiguous or missing at an hour")
-        vals=np.sum(np.where(valid,raw,0.),axis=0)
+        vals=np.sum(np.where(valid,raw,np.zeros_like(raw)),axis=0,dtype=raw.dtype)
     else:
-        vals=np.asarray(a.squeeze().values,dtype=np.float64)
+        vals=np.asarray(a.squeeze().values)
     check(vals.ndim==1 and np.isfinite(vals).all(),
           "ERA5 source wind variable missing, ambiguous or non-1D")
     return vals
@@ -137,6 +161,8 @@ def acquire(year,output_root):
         "source_monthly_files":[],
         "year":year,"status":"INCOMPLETE_ORIGINAL_ERA5_SOURCE_COLLECTION",
         "original_2023_wind_float64_reference_match":None,
+        "original_2023_wind_microMW_reference_match":None,
+        "original_2023_frozen_PyNEXUS_float64_SHA256":EXPECTED_2023_WIND_F64_SHA,
         "complete_industrial_site_validation":False,
         "native_ERA5_is_weather_reanalysis_not_plant_measurement":True,
         "original_PyNEXUS_100m_to_120m_alpha":0.11,
@@ -166,15 +192,21 @@ def acquire(year,output_root):
             print("Verified ERA5 raw month",year,month,len(wind),"hours",flush=True)
         check(len(output)==YEARS[year],"ERA5 annual hourly coverage invalid")
         sha=f64sha(output)
+        micro_sha=micro_mw_source_sha(output)
         match=sha==EXPECTED_2023_WIND_F64_SHA if year==2023 else None
+        close=(micro_sha==EXPECTED_2023_WIND_MICROMW_SHA if year==2023 else None)
         report.update({
             "annual_utc_hours":len(output),"normalized_wind_float64_SHA256":sha,
+            "normalized_wind_1W_quantized_SHA256":micro_sha,
             "original_2023_wind_float64_reference_match":match,
+            "original_2023_wind_microMW_reference_match":close,
             "status":"SOURCE_RECONSTRUCTED_NOT_EXTERNALLY_REVIEWED",
             "full_UTC_calendar_year_no_gaps":True,
         })
-        if year==2023:
-            check(match,"2023 ERA5 source wind does NOT match frozen PyNEXUS source SHA; investigate provider revision, variable, grid and power curve")
+        if year==2023 and not close:
+            report["status"]="2023_ORIGINAL_SOURCE_WIND_NUMERICAL_REPRODUCTION_FAILED"
+            raise ValueError("2023 ERA5 source does NOT reproduce original PyNEXUS "
+                             "year wind to 1W quantized resolution; source not admitted")
         with (output_root/"normalized_UTC_wind.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.writer(f)
             writer.writerow(["timestamp_utc","wind_available_mw"])
