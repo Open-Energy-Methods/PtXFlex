@@ -1,15 +1,7 @@
 name: F3-D LIVE native ENTSOE and ERA5 observed-year source gate (private)
 on:
-  push:
-    branches: ['feat/milp-methanol-baseline']
-    paths:
-      - 'src/ptxflex/f3d_live_entsoe.py'
-      - 'src/ptxflex/f3d_live_era5.py'
-      - 'src/ptxflex/f3d_live_provider_pair_gate.py'
-      - 'tests/test_f3d_live_provider_acquisition.py'
-      - 'tests/test_f3d_private_era5_partial_audit.py'
-      - 'src/ptxflex/f3d_private_era5_partial_audit.py'
-      - '.github/workflows/f3d-live-entsoe-era5-2022-2024.yml'
+  # Legacy whole-year ERA5 sequence intentionally NOT started on code pushes.
+  # The serial 12-month 340-minute runner actually timed out 2026-11-15.
   workflow_dispatch:
 permissions:
   contents: read
@@ -66,6 +58,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
   era5_native:
+    if: false # DEPRECATED: serial 12x CDS can exceed runner duration; use per-month source recovery.
     needs: independent_no_network_tests
     runs-on: ubuntu-latest
     timeout-minutes: 340
