@@ -20,6 +20,8 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import math
+import time
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
@@ -118,6 +120,102 @@ def physical_duty(params,mode):
     return duty
 
 
+def try_lp_bound_fixed_binary_certificate(c,A,lb,ub,lo,hi,*,n,time_limit_s,
+                                          gap_tolerance=1e-6):
+    """Certified exact-model selector: root LP bound + integer-feasible LP.
+
+    This is a mathematically valid MILP optimality proof ONLY when both LPs
+    terminate optimal, a binary-fixed primal is feasible, and their GLOBAL
+    upper/lower alpha gap is <= the unchanged 1e-6 scientific tolerance.
+
+    No binary feasibility constraints, pressure/physical balance equations,
+    source-year target or HiGHS optimality tolerance are dropped. If the
+    fixed binary trial is not certified, return None to run original MILP.
+    """
+    n=int(n)
+    nvar=n*DIM+1
+    require(len(c)==nvar and n>0,"invalid LP certificate model dimensions")
+    lc=LinearConstraint(A,lb,ub)
+    t0=time.monotonic()
+    print(f"F3D_SELECTOR_ROOT_LP_START hours={n} fields={nvar}; no original provider values logged",flush=True)
+    try:
+        root=milp(c=c,bounds=Bounds(lo,hi),constraints=lc,
+                  options={"time_limit":min(240.,max(5.,float(time_limit_s)*0.2))})
+    except MemoryError:
+        print("F3D_SELECTOR_ROOT_LP_OUT_OF_MEMORY: preserving all previous results",flush=True)
+        return None
+    if root.status!=0 or root.x is None or root.fun is None or not math.isfinite(float(root.fun)):
+        print("F3D_SELECTOR_ROOT_LP_NOT_CERTIFIED; original mixed integer MILP required",flush=True)
+        return None
+    upper=float(-root.fun)
+    require(-1e-7<=upper<=1.000001,"LP relaxed service upper outside [0,1]")
+    root_states=np.asarray(root.x[:n*DIM],dtype=np.float64).reshape(n,DIM)
+    pmin=float(np.min(hi[np.arange(n)*DIM+P]))  # upper P is pmax, NOT min load
+    # U is the commitment switch: pmin is recovered directly from linear
+    # constraint coefficient by the caller passing explicit min-load value.
+    # Avoid inference from the LP if not explicitly available.
+    for policy in ("LP_commitment","always_committed"):
+        uidx=np.arange(n)*DIM+U
+        zidx=np.arange(n)*DIM+Z
+        if policy=="LP_commitment":
+            u=(root_states[:,U]>=.5).astype(float)
+        else:
+            u=np.ones(n,dtype=float)
+        # CH=charge; DIS=discharge. This is a trial integral direction,
+        # not an assumption that the LP relaxation's physical cycles vanish.
+        z=(root_states[:,CH]>=root_states[:,DIS]).astype(float)
+        f_lo=lo.copy()
+        f_hi=hi.copy()
+        f_lo[uidx]=f_hi[uidx]=u
+        f_lo[zidx]=f_hi[zidx]=z
+        print(f"F3D_SELECTOR_FIXED_BINARY_LP_START policy={policy} "
+              f"root_max_service_fraction_UB={upper:.9f}",flush=True)
+        try:
+            candidate=milp(
+                c=c,bounds=Bounds(f_lo,f_hi),constraints=lc,
+                options={"time_limit":min(240.,max(5.,float(time_limit_s)*0.2))},
+            )
+        except MemoryError:
+            print("F3D_SELECTOR_FIXED_BINARY_LP_OUT_OF_MEMORY; trying another proof route",flush=True)
+            continue
+        if candidate.status!=0 or candidate.x is None or candidate.fun is None:
+            print(f"F3D_SELECTOR_FIXED_BINARY_LP_NOT_FEASIBLE policy={policy} "
+                  f"status={candidate.status}",flush=True)
+            continue
+        alpha=float(candidate.x[n*DIM])
+        # Require integer feasibility independently of any fixed-bound claims.
+        states=np.asarray(candidate.x[:n*DIM],dtype=np.float64).reshape(n,DIM)
+        integral=max(float(np.max(np.abs(states[:,U]-np.rint(states[:,U])))),
+                     float(np.max(np.abs(states[:,Z]-np.rint(states[:,Z])))))
+        if integral>1e-6 or not math.isfinite(alpha) or alpha<=0:
+            continue
+        # The LP optimum is an upper bound on the ORIGINAL integer optimum.
+        # Add 1e-8 to avoid rounding a valid dual bound down, which can
+        # otherwise give spurious negative relative gaps.
+        upper_safe=min(1.,upper+1e-8)
+        if upper_safe<alpha-1e-7:
+            continue
+        rel_gap=max(0.,upper_safe-alpha)/max(alpha,1e-12)
+        if rel_gap<=gap_tolerance:
+            # Caller performs independent physics, mass, power, EOS replay.
+            print(f"F3D_SELECTOR_LP_PRIMAL_DUAL_CERTIFIED policy={policy} "
+                  f"alpha={alpha:.9f} upper_bound={upper_safe:.9f} "
+                  f"relative_gap={rel_gap:.3g}; no integer branch tree",flush=True)
+            return SimpleNamespace(
+                x=candidate.x,status=0,mip_gap=rel_gap,
+                mip_dual_bound=-upper_safe,
+                certificate_kind="LP_GLOBAL_UPPER_BOUND_AND_INTEGER_FIXED_BINARY_FEASIBLE_PRIMAL",
+                root_lp_optimization_status=0,
+                fixed_binary_lp_optimization_status=0,
+                fixed_binary_primal_integrality_max=integral,
+            )
+        print(f"F3D_SELECTOR_FIXED_BINARY_LP_GAP_NOT_CERTIFIED policy={policy} "
+              f"alpha={alpha:.9f} upper_bound={upper_safe:.9f} "
+              f"relative_gap={rel_gap:.6g}",flush=True)
+    print("F3D_SELECTOR_LP_PROOF_NOT_CERTIFIED; fallback original MILP with bounded search",flush=True)
+    return None
+
+
 def select_max_uniform_fraction(wind,params,pressure_duty,*,year=None,
                                 time_limit_s=900,mip_rel_gap=1e-6,
                                 testing_only=False):
@@ -208,9 +306,36 @@ def select_max_uniform_fraction(wind,params,pressure_duty,*,year=None,
             add({idx(t-1,P):1,idx(t,P):-1},-math.inf,ramp)
     add({idx(n-1,S):1},terminal,terminal)
     A=coo_matrix((vv,(rr,cc)),shape=(len(lb),count)).tocsr()
-    r=milp(c=c,integrality=integer,bounds=Bounds(lo,hi),
-           constraints=LinearConstraint(A,np.asarray(lb),np.asarray(ub)),
-           options={"time_limit":float(time_limit_s),"mip_rel_gap":float(mip_rel_gap)})
+    bounds=Bounds(lo,hi)
+    constraints=LinearConstraint(A,np.asarray(lb),np.asarray(ub))
+    # The 2022 usable-service selector exhausted Windows RAM in the
+    # unbounded HiGHS MIP search. Try a GLOBAL LP dual bound with a
+    # complete feasible fixed-hour binary LP certificate first.
+    r=(try_lp_bound_fixed_binary_certificate(
+            c,A,np.asarray(lb),np.asarray(ub),lo,hi,n=n,
+            time_limit_s=time_limit_s,gap_tolerance=mip_rel_gap)
+       if n>=1000 else None)
+    if r is None:
+        print(f"F3D_SELECTOR_EXACT_MILP_START hours={n} "
+              f"node_limit={500 if n>=1000 else 'unlimited'} "
+              f"gap={mip_rel_gap}; memory-bounded fallback",flush=True)
+        options={"time_limit":float(time_limit_s),"mip_rel_gap":float(mip_rel_gap),
+                 "disp":False}
+        if n>=1000:
+            # Prevent an unbounded search tree on ordinary Windows RAM.
+            # If its exact gap is not met, STOP -- never call partial optimal.
+            options["node_limit"]=500
+        try:
+            r=milp(c=c,integrality=integer,bounds=bounds,
+                   constraints=constraints,options=options)
+        except MemoryError as exc:
+            raise SourceLockedDispatchError(
+                "F3-D price-neutral full-year selector ran out of HiGHS RAM; "
+                "completed historical cases are preserved. No source-year "
+                "optimality or economic result is claimed for this mode."
+            ) from exc
+        r.certificate_kind="HIGHS_ORIGINAL_FULL_INTEGER_MIP_PRIMAL_DUAL"
+
     gap=float(getattr(r,"mip_gap",math.nan) or 0.) if getattr(r,"mip_gap",None) is not None else math.nan
     dual=getattr(r,"mip_dual_bound",None)
     require(r.status==0 and r.x is not None and math.isfinite(gap) and
@@ -246,6 +371,9 @@ def select_max_uniform_fraction(wind,params,pressure_duty,*,year=None,
         "original_nominal_h2_demand_kg":float(n*customer),
         "selected_h2_target_float64_sha256":array_sha(target),
         "E_price_neutral_mip_relative_gap":gap,
+        "E_max_service_global_optimality_certificate_method":r.certificate_kind,
+        "E_max_service_global_LP_upper_bound_matches_fixed_binary_primal":
+            r.certificate_kind=="LP_GLOBAL_UPPER_BOUND_AND_INTEGER_FIXED_BINARY_FEASIBLE_PRIMAL",
         "E_binary_price_neutral_feasible":True,
         "E_price_neutral_physical_residual_max":float(max(audit["independent_max_physical_residuals"].values())),
         "source_E_pressure_screen_only":pressure_duty is not None,
