@@ -71,7 +71,7 @@ switch($Phase) {
    $range=if($Month -eq 0){@(1..12)}else{@($Month)}
    $secure=Read-Host "Copernicus CDS personal access token (input hidden)" -AsSecureString
    try {
-     $credential=New-Object PSCredential("cds",$secure)
+     $credential=[System.Management.Automation.PSCredential]::new("cds",$secure)
      $env:ERA5_API_KEY=$credential.GetNetworkCredential().Password
      Need ($env:ERA5_API_KEY.Length -gt 10) "CDS token missing"
      foreach($month in $range){
