@@ -82,8 +82,7 @@ def test_full_ARCO_point_snapshot_is_source_integral_and_leap_preserving(tmp_pat
         assert ds.sizes["time"]==8784
         assert str(ds.time.values[0]).startswith("2024-01-01T00:00:00")
         assert str(ds.time.values[-1]).startswith("2024-12-31T23:00:00")
-        assert ds.attrs["native_CDS_monthly_original"]=="0" or ds.attrs[
-            "native_CDS_monthly_original"]==False
+        assert ds.attrs["native_CDS_monthly_original"]=="false"
     csv=tmp_path/"normalized_UTC_wind.csv"
     m.write_utc_wind_csv(csv,2024,wind)
     text=csv.read_text()
