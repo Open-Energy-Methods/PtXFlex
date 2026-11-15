@@ -2,10 +2,9 @@ name: F3-D ERA5 2023 CDS REAL monthly calls — timeout recovery and source cali
 on:
   push:
     branches: ['feat/milp-methanol-baseline']
-    paths:
-      - '.github/workflows/f3d-era5-2023-sharded-recovery.yml'
-      - 'src/ptxflex/f3d_era5_sharded_acquisition.py'
-      - 'tests/test_f3d_era5_sharded_acquisition.py'
+    # Only deliberate source-ready trigger: don't waste minutes on pushes
+    # when the organization GitHub Actions runner fails before job setup.
+    paths: ['research/F3_D_ERA5_2023_MONTHLY_RUN_TRIGGER.json']
   workflow_dispatch:
 permissions:
   contents: read
