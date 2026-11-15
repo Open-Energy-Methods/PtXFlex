@@ -125,3 +125,35 @@ def test_single_month_method_rejects_invalid_calendar_and_unavailable_key(monkey
     monkeypatch.delenv("ERA5_API_KEY",raising=False)
     with pytest.raises(ValueError,match="secret not available"):
         a.acquire_month(2023,5,tmp_path/"private_raw")
+
+
+def test_source_original_2023_downloaded_from_gh_has_all_12_frozen_month_hashes():
+    assert len(a.PY_NEXUS_RECOVERED_2023_MONTH_SHA)==12
+    assert set(a.PY_NEXUS_RECOVERED_2023_MONTH_SHA)==set(range(1,13))
+    assert a.PY_NEXUS_RECOVERED_2023_MONTH_SHA[1]=="e0fbd6f67080f1421d50b2d787d9efa7e572d7a2b84c3a1f5b428860096e1d9c"
+    assert a.PY_NEXUS_RECOVERED_2023_MONTH_SHA[12]=="e83ec69c5156e349c632b5e23ec6cb4975452a7b2ed62ae79830f778ef3fc507"
+    assert a.FROZEN_2023_CDS_RECOVERY_ZIP_SHA=="730a7ae28c450e283f599043452e2fda350ca76f19a68bf62b32dbc0cf00491e"
+
+
+def test_local_2023_zip_import_rejects_fake_source_without_CDS(tmp_path):
+    import zipfile
+    fake=tmp_path/"fake_2023_ERA5.zip"
+    with zipfile.ZipFile(fake,"w") as z:
+        z.writestr("era5_2023-01-01_2023-01-31_52.5_3.5.nc",b"not original")
+    with pytest.raises(ValueError,match="original PyNEXUS full 2023 monthly ZIP SHA mismatch"):
+        a.seed_original_2023_from_pynexus_zip(fake,tmp_path/"new_2023")
+
+
+def test_local_2023_folder_import_rejects_missing_or_wrong_source_months(tmp_path):
+    original=tmp_path/"original_12_months"
+    original.mkdir()
+    with pytest.raises(ValueError,match="exactly 12 original"):
+        a.seed_original_2023_from_pynexus_folder(original,tmp_path/"recovered")
+    # A fake timestamp-correct NetCDF still cannot replace the byte-frozen
+    # original 26 Oct 2026 PyNEXUS CDS source.
+    for month in range(1,13):
+        last=calendar.monthrange(2023,month)[1]
+        filename=f"era5_2023-{month:02d}-01_2023-{month:02d}-{last:02d}_52.5_3.5.nc"
+        synthetic_netCDF(original/filename,2023,month)
+    with pytest.raises(ValueError,match="does not match 2026-10-26 PyNEXUS audit"):
+        a.seed_original_2023_from_pynexus_folder(original,tmp_path/"recovered")
