@@ -18,6 +18,7 @@ import json
 import os
 from pathlib import Path
 import time
+import shutil
 
 import numpy as np
 
@@ -298,6 +299,14 @@ def acquire_arco(year,output,calibration,reference_months=None):
         report["2023_frozen_CDS_wind_1W_sha256"]=EXPECTED_2023_WIND_MICROMW_SHA
         report["2022_2024_source_equivalence_is_reanalysis_not_site_validation"]=True
     target.mkdir(parents=True,exist_ok=False)
+    if cal is not None and report["status"]==ARCO_ACCEPTED_STATUS:
+        # Preserve the full original-CDS-to-ARCO 2023 source-equivalence
+        # evidence alongside the actual 2022/2024 point time series. This
+        # stays PRIVATE and its byte SHA is independently rechecked offline.
+        copy=target/"ARCO_2023_original_CDS_calibration_receipt.json"
+        shutil.copyfile(calibration,copy)
+        need(filehash(copy)==report["source_2023_full_calibration_file_SHA256"],
+             "copied 2023 original source equivalence certificate changed")
     if report["status"] in (ARCO_ACCEPTED_STATUS,CAL_ACCEPTED_STATUS):
         report["source_point_netCDF_snapshot_SHA256"]=save_snapshot(
             target/ARCO_SNAPSHOT_NAME.format(year=year),vectors,year)
