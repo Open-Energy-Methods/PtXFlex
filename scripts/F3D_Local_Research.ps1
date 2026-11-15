@@ -5,6 +5,8 @@ param(
  [ValidateSet("Install","Download","Recover2023","PilotARCO","CalibrateARCO2023","FetchARCO2022","FetchARCO2024","VerifyARCO2022","VerifyARCO2024","SolveARCO2022","SolveARCO2024","ReviewARCO","Fetch2022","Fetch2024","Assemble2022","Assemble2024","Verify2022","Verify2024","Solve2022","Solve2024","Review","Status")]
  [string]$Phase="Status",
  [int]$Month=0,
+ [ValidateSet("both","max_inventory","usable_service")]
+ [string]$Mode="both",
  [string]$PrivateRoot=(Join-Path $HOME "PtX_PRIVATE_RESEARCH"),
  [string]$FlexRoot=(Join-Path $PSScriptRoot ".."),
  [string]$LensRoot=(Join-Path $PSScriptRoot "..\..\PtXLens")
@@ -194,10 +196,29 @@ switch($Phase) {
  { $_ -eq "SolveARCO2022" -or $_ -eq "SolveARCO2024" } {
    $year=if($Phase -eq "SolveARCO2022"){2022}else{2024}
    Need (Test-Path (Join-Path $PrivateRoot "results\source-pair-ARCO-$year.json")) "VerifyARCO$year must pass before any annual source-year MILP"
-   foreach($mode in @("max_inventory","usable_service")){
+   $modes=if($Mode -eq "both"){@("max_inventory","usable_service")}else{@($Mode)}
+   foreach($mode in $modes){
      $result=Join-Path $PrivateRoot ("results\F3D_ARCO_{0}_{1}.json" -f $year,$mode)
      $witness=Join-Path $PrivateRoot ("results\PRIVATE_F3D_ARCO_{0}_{1}_primal.json" -f $year,$mode)
-     Need (-not (Test-Path $result) -and -not (Test-Path $witness)) "Do not overwrite a prior annual source-certified MILP or private primal"
+     $hasResult=Test-Path $result -PathType Leaf
+     $hasWitness=Test-Path $witness -PathType Leaf
+     if($hasResult -or $hasWitness){
+       Need ($hasResult -and $hasWitness) "Incomplete year/mode evidence: result/witness mismatch; do not overwrite"
+       $report=Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
+       $primal=Get-Content -LiteralPath $witness -Raw | ConvertFrom-Json
+       Need ($report.schema_version -eq "ptxflex.f3d_2022_2024_equal_hourly_model_service_pressure_screening.v1" -and
+             $report.year -eq $year -and $report.capacity_semantics -eq $mode -and
+             $report.year_UTC_hours -eq $(if($year -eq 2024){8784}else{8760}) -and
+             $report.mathematically_matched_exact_same_modelled_hourly_H2_target -eq $true -and
+             $report.v1_0_scientific_release_allowed -eq $false -and
+             $primal.schema_version -eq "ptxflex.f3d_PRIVATE_original_source_dispatch_witness.v1" -and
+             $primal.year -eq $year -and $primal.capacity_semantics -eq $mode -and
+             $primal.price_float64_sha256 -eq $report.source_year_price_f64_sha256 -and
+             $primal.wind_float64_sha256 -eq $report.source_year_wind_f64_sha256) "Existing year/mode evidence metadata mismatch. Keep immutable and independently inspect."
+       Write-Host "REUSED VERIFIED PRESENCE of existing ORIGINAL $year $mode result/witness; no overwrite. Full independent physical PtXLens replay is still needed."
+       continue
+     }
+     Write-Host "START year=$year mode=$mode; preserving all earlier successful cases; selector -> E -> E+S; no live progress percentages" 
      Run $python @("-m","ptxflex.f3d_year_matched_service",
        "--year","$year","--mode",$mode,
        "--price-root",(Join-Path $PrivateRoot "price-$year"),
