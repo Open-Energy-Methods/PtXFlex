@@ -7,6 +7,8 @@ on:
       - 'src/ptxflex/f3d_live_era5.py'
       - 'src/ptxflex/f3d_live_provider_pair_gate.py'
       - 'tests/test_f3d_live_provider_acquisition.py'
+      - 'tests/test_f3d_private_era5_partial_audit.py'
+      - 'src/ptxflex/f3d_private_era5_partial_audit.py'
       - '.github/workflows/f3d-live-entsoe-era5-2022-2024.yml'
   workflow_dispatch:
 permissions:
@@ -25,7 +27,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install -e '.[dev]'
       - name: A44/A03 block, 2024 leap, 100m wind curve, missing data and source-gate tests
-        run: python -m pytest -q tests/test_f3d_live_provider_acquisition.py tests/test_f3d_external_observed_year_private_intake.py
+        run: python -m pytest -q tests/test_f3d_live_provider_acquisition.py tests/test_f3d_external_observed_year_private_intake.py tests/test_f3d_private_era5_partial_audit.py
   entsoe_native:
     needs: independent_no_network_tests
     runs-on: ubuntu-latest
