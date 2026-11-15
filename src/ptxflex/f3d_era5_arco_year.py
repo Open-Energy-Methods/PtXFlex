@@ -209,7 +209,7 @@ def save_snapshot(target,vectors,year):
                   attrs={"origin":"Copernicus ERA5 ARCO geo-chunked Zarr point extraction",
                          "source_URL":ARCO_URL,
                          "lat":REFERENCE_LAT,"lon":REFERENCE_LON,
-                         "native_CDS_monthly_original":False})
+                         "native_CDS_monthly_original":"false"})
     ds.to_netcdf(target)
     with xr.open_dataset(target) as check_ds:
         require_exact_calendar(check_ds.time.values,year)
