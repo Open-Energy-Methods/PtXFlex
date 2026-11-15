@@ -186,6 +186,76 @@ def seed_original_2023_from_pynexus_zip(archive, output_root):
         raise
 
 
+# Source-archive SHA and per-file original re-delivery hashes are from
+# PyNEXUS run 40230838449, artifact 12653508461 and its independent audit.
+# A GitHub CLI "run download" extracts original source without preserving ZIP
+# container bytes, so these twelve original monthly NetCDF hashes matter.
+PY_NEXUS_RECOVERED_2023_MONTH_SHA={
+    1:"e0fbd6f67080f1421d50b2d787d9efa7e572d7a2b84c3a1f5b428860096e1d9c",
+    2:"2b32ab30219c65ab3285e41b28f235fe1bd272cedaa9bd8ce8e4082b8addd9be",
+    3:"a9757eec33d70c0f266c8fa26a850d608a47bdedb567b6babb66cedd65716481",
+    4:"b52485f26231edcf02fce05ed9fd77947c5e3e5be14f7a61d27d1a74e31337a8",
+    5:"d6291b3f8f7a07460512e33efaf7cdd023bb9850f708e6f48fef1aa9d35a6377",
+    6:"a9e0caab5bd574eeac6daea540965cce7400f5968ef94c1aae8b4c2f69d3bd84",
+    7:"ae673ac4d66ad8e90216a37f22c456cd6d5e81faabfef790e5ad77c16c5c585d",
+    8:"a864f25f67a4e50caac5d6bf84b50fea9771ba414b09ceacd07ce9488847b1a6",
+    9:"e6a211b71e58a91130fa12834a8b2949d4cde67df3ba58ab280d31f603cbc80b",
+    10:"f1288e0f0eb8d905f1b8605cdd9f6be06984e25404adf721eb0ffdf9e2e7cbe4",
+    11:"ed8d644276cdacd8420b68ea949847a448c0a6da98a5d80a7112eb29e0d8f4aa",
+    12:"e83ec69c5156e349c632b5e23ec6cb4975452a7b2ed62ae79830f778ef3fc507",
+}
+
+
+def seed_original_2023_from_pynexus_folder(monthly_folder,output_root):
+    """Admit byte-exact extracted PyNEXUS original 12 months from GitHub CLI.
+
+    Not a network request. Cross-check EACH actual NetCDF against the source
+    archive's independent audit and recompute all 8760 hours. Reject
+    incomplete, renamed, mixed or tampered 2023 source months.
+    """
+    folder=Path(monthly_folder).resolve(strict=True)
+    out=Path(output_root).resolve()
+    require(folder.is_dir() and not folder.is_symlink() and not out.exists(),
+            "source folder must exist; annual output may not overwrite originals")
+    require(not out.is_relative_to(folder) and not folder.is_relative_to(out),
+            "source and output cannot contain each other")
+    original_files={p.name:p for p in folder.iterdir()}
+    names={}
+    for month in range(1,13):
+        last=calendar.monthrange(2023,month)[1]
+        original_name=f"era5_2023-{month:02d}-01_2023-{month:02d}-{last:02d}_52.5_3.5.nc"
+        names[month]=original_name
+    require(set(original_files)==set(names.values()),
+            "original PyNEXUS 2023 recovered folder needs exactly 12 original NetCDF filenames")
+    rawdir=out/"_original_months"/"original_monthly_netcdf"
+    rawdir.mkdir(parents=True,exist_ok=False)
+    original_sha={}
+    for month in range(1,13):
+        p=original_files[names[month]]
+        require(p.is_file() and not p.is_symlink() and
+                filehash(p)==PY_NEXUS_RECOVERED_2023_MONTH_SHA[month],
+                f"source original month 2023-{month:02d} does not match 2026-10-26 PyNEXUS audit")
+        target=rawdir/original_filename(2023,month)
+        shutil.copyfile(p,target)
+        require(filehash(target)==PY_NEXUS_RECOVERED_2023_MONTH_SHA[month],
+                "copied original month changed SHA256")
+        original_sha[str(month)]=filehash(p)
+    result=assemble_year(2023,rawdir.parent,out/"complete")
+    record={
+       "schema_version":"ptxflex.f3d_2023_exact_PyNEXUS_original_CDS_12_month_GitHub_extraction.v1",
+       "original_github_run":40230838449,
+       "original_github_artifact":12653508461,
+       "original_source_monthly_sha256":original_sha,
+       "original_2023_1W_model_reconstruction_PASSED":result["original_2023_wind_microMW_reference_match"],
+       "full_original_2023_binary_float64_identity_not_claimed":True,
+       "no_fresh_CDS_requests_made":True,
+    }
+    (out/"source_recovery.json").write_text(
+        json.dumps(record,indent=2,sort_keys=True)+"\\n",encoding="utf-8"
+    )
+    return result
+
+
 def assemble_year(year,input_root,output_root):
     """Exact 12 ORIGINAL monthly NetCDF files -> paired-data-compatible year."""
     require(year in YEARS,"unregistered original ERA5 year")
@@ -279,6 +349,8 @@ def main(argv=None):
     sub.add_argument("--assemble-input",help="Verify 12 original NetCDF months, build complete UTC year")
     sub.add_argument("--seed-original-2023-zip",
                      help="Import exact SHA-frozen 12-month PyNEXUS Oct 2026 original source ZIP; no CDS calls")
+    sub.add_argument("--seed-original-2023-folder",
+                     help="Import 12 exact original PyNEXUS Oct 2026 NetCDFs extracted by gh run download")
     ap.add_argument("--output",required=True)
     a=ap.parse_args(argv)
     if a.month is not None:
@@ -286,6 +358,9 @@ def main(argv=None):
     elif a.seed_original_2023_zip is not None:
         require(a.year==2023,"frozen original source ZIP only contains 2023")
         report=seed_original_2023_from_pynexus_zip(a.seed_original_2023_zip,a.output)
+    elif a.seed_original_2023_folder is not None:
+        require(a.year==2023,"original source folder only contains 2023")
+        report=seed_original_2023_from_pynexus_folder(a.seed_original_2023_folder,a.output)
     else:
         report=assemble_year(a.year,a.assemble_input,a.output)
     print("ERA5 month-sharded status:",report["status"],"year",a.year)
