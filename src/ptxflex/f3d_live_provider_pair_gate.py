@@ -19,6 +19,7 @@ from .f3d_external_observed_year_private_intake import (
     REFERENCE_2023_WIND_SHA,REFERENCE_2023_PRICE_SHA
 )
 from .f3d_live_entsoe import FROZEN_2023_PRICE_F64_SHA, months_bracketing_year
+from .f3d_live_era5 import EXPECTED_2023_WIND_MICROMW_SHA
 
 
 def check(ok,reason):
@@ -33,6 +34,7 @@ def validate_2023_csv(path,metric,cap=None):
     """Independent calibration of frozen 2023 f64 SHA; intake gate excludes 2023."""
     start=datetime(2023,1,1,tzinfo=timezone.utc)
     digest=hashlib.sha256()
+    micro_wind_digest=hashlib.sha256()
     with Path(path).open(encoding="utf-8-sig",newline="") as f:
         r=csv.DictReader(f)
         check(r.fieldnames==["timestamp_utc",metric],"2023 normalized source fields invalid")
@@ -45,9 +47,12 @@ def validate_2023_csv(path,metric,cap=None):
             check(math.isfinite(v) and (cap is None or 0<=v<=cap+1e-8),
                   "2023 source has unphysical or missing price/wind")
             digest.update(struct.pack("<d",v))
+            if metric=="wind_available_mw":
+                micro_wind_digest.update(struct.pack("<q",round(v*1000000.0)))
             count+=1
     check(count==8760,"2023 source missing hours")
-    return {"hours":count,"float64_le_sha256":digest.hexdigest()}
+    return {"hours":count,"float64_le_sha256":digest.hexdigest(),
+            "wind_1W_quantized_sha256":micro_wind_digest.hexdigest() if metric=="wind_available_mw" else None}
 
 
 def verify_one(folder,year,kind):
@@ -85,8 +90,10 @@ def verify_one(folder,year,kind):
         check(data.get("status")=="SOURCE_RECONSTRUCTED_NOT_EXTERNALLY_REVIEWED",
               "native ERA5 source incomplete")
         if year==2023:
-            check(data.get("original_2023_wind_float64_reference_match") is True and recorded==REFERENCE_2023_WIND_SHA,
-                  "ERA5 2023 wind-to-power source pipeline not calibrated")
+            check(data.get("original_2023_wind_microMW_reference_match") is True and
+                  data.get("normalized_wind_1W_quantized_SHA256")==EXPECTED_2023_WIND_MICROMW_SHA and
+                  data.get("original_2023_frozen_PyNEXUS_float64_SHA256")==REFERENCE_2023_WIND_SHA,
+                  "ERA5 2023 source wind does not reproduce original model to 1W precision")
     for item in docs:
         p=provider_dir/item["filename"]
         check(p.is_file() and not p.is_symlink() and sha(p)==item["sha256"] and
@@ -98,8 +105,13 @@ def verify_one(folder,year,kind):
           kind+" invalid original year hours")
     check(validated["float64_le_sha256"]==recorded,
           kind+" normalized CSV floats differ from original A44/ERA5 provenance")
+    if kind=="wind" and year==2023:
+        check(validated["wind_1W_quantized_sha256"]==EXPECTED_2023_WIND_MICROMW_SHA,
+              "independent 2023 wind CSV does not match original PyNEXUS 1W SHA")
     return {"original_documents_count":len(docs),
             "normalized_float64_sha256":recorded,
+            "original_2023_wind_1W_quantized_SHA256":(
+                validated["wind_1W_quantized_sha256"] if kind=="wind" and year==2023 else None),
             "original_file_sha256":[x["sha256"] for x in docs],
             "full_UTC_hours":validated["hours"],
             "normalized_csv_sha256":data["normalized_csv_SHA256"]}
@@ -119,7 +131,11 @@ def verify_pair(year,price_root,wind_root,reference_price_root,reference_wind_ro
         "year":year,
         "expected_full_UTC_hours":YEARS[year],
         "actual_2023_original_price_reproduction":baseline_price["normalized_float64_sha256"]==REFERENCE_2023_PRICE_SHA,
-        "actual_2023_original_wind_reproduction":baseline_wind["normalized_float64_sha256"]==REFERENCE_2023_WIND_SHA,
+        "actual_2023_original_wind_reproduction":baseline_wind["original_2023_wind_1W_quantized_SHA256"]==EXPECTED_2023_WIND_MICROMW_SHA,
+        "2023_original_model_float64_source_sha256":REFERENCE_2023_WIND_SHA,
+        "2023_provider_reconstruction_not_asserted_bitwise_equal_to_original":
+            baseline_wind["normalized_float64_sha256"]!=REFERENCE_2023_WIND_SHA,
+        "2023_source_equivalence_verified_at_1W_quantized_MW_resolution_only":True,
         "year_price":price,
         "year_wind":wind,
         "source_price_and_weather_calendar_and_original_hashes_verified":True,
