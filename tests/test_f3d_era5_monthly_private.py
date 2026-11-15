@@ -1,5 +1,6 @@
 """Synthetic isolated-month acquisition tests; never real provider observations."""
 import json
+import calendar
 from pathlib import Path
 
 import numpy as np
@@ -22,8 +23,9 @@ class FakeClient:
 
 def fake_loader(path, year, month):
     assert Path(path).is_file()
-    return np.arange(24, dtype=float), {
-        "month_UTC_hours": 24, "source_grid_latitude": 52.5,
+    hours = calendar.monthrange(year, month)[1] * 24
+    return np.arange(hours, dtype=float), {
+        "month_UTC_hours": hours, "source_grid_latitude": 52.5,
         "source_grid_longitude": 3.5, "u10_v10_u100_v100_complete": True,
     }
 
@@ -35,7 +37,7 @@ def test_isolated_month_never_admits_year(tmp_path, monkeypatch):
     report = module.acquire_month(2023, 4, root, client)
     assert len(client.calls) == 1
     assert client.calls[0][1]["month"] == ["04"]
-    assert report["month_UTC_hours"] == 24
+    assert report["month_UTC_hours"] == 720
     assert report["annual_calendar_complete"] is False
     assert report["admitted_as_observed_full_year"] is False
     assert report["original_2023_wind_float64_reference_match"] is None
@@ -67,3 +69,38 @@ def test_invalid_calendar_rejected_before_io(tmp_path, year, month):
     with pytest.raises(ValueError):
         module.acquire_month(year, month, tmp_path / "output", FakeClient())
     assert not (tmp_path / "output").exists()
+
+@pytest.mark.parametrize("kind", ["short", "nonfinite", "bad_metadata", "missing_field", "two_dimensional"])
+def test_incomplete_month_rejected_before_source_manifest_admission(tmp_path, monkeypatch, kind):
+    def broken_loader(path, year, month):
+        hours = calendar.monthrange(year, month)[1] * 24
+        values = np.arange(hours, dtype=float)
+        details = {"month_UTC_hours": hours,
+                   "u10_v10_u100_v100_complete": True}
+        if kind == "short":
+            values = values[:-1]
+        elif kind == "nonfinite":
+            values[1] = np.nan
+        elif kind == "bad_metadata":
+            details["month_UTC_hours"] -= 1
+        elif kind == "missing_field":
+            details["u10_v10_u100_v100_complete"] = False
+        else:
+            values = values.reshape(-1, 24)
+        return values, details
+    monkeypatch.setattr(module, "load_original_month", broken_loader)
+    root = tmp_path / kind
+    with pytest.raises(ValueError, match="independent UTC-hour"):
+        module.acquire_month(2023, 4, root, FakeClient())
+    report = json.loads((root / "provenance.json").read_text())
+    assert report["source_monthly_files"] == []
+    assert report["admitted_as_observed_full_year"] is False
+
+
+@pytest.mark.parametrize("year,month,expected", [(2023, 2, 672), (2024, 2, 696), (2023, 4, 720)])
+def test_complete_synthetic_calendar_months_are_not_annual_admission(tmp_path, monkeypatch, year, month, expected):
+    monkeypatch.setattr(module, "load_original_month", fake_loader)
+    report = module.acquire_month(year, month, tmp_path / f"{year}-{month}", FakeClient())
+    assert report["month_UTC_hours"] == expected
+    assert report["annual_calendar_complete"] is False
+    assert report["admitted_as_observed_full_year"] is False
