@@ -55,11 +55,121 @@ def validate_2023_csv(path,metric,cap=None):
             "wind_1W_quantized_sha256":micro_wind_digest.hexdigest() if metric=="wind_available_mw" else None}
 
 
+def verify_arco_alternate_year(folder,year,manifest):
+    """Independently rehash actual ARCO 4-wind-field private annual snapshot.
+
+    A real ARCO geo-chunked original source representation is NOT a 12-NC
+    monthly CDS download. The original 2023 CDS reference must have passed
+    independently, and its 8760-hour ARCO equivalence receipt is replayed
+    as a separate, privately stored, SHA-verified proof, not merely a flag.
+    """
+    import numpy as np
+    import xarray as xr
+    from .f3d_era5_arco_year import (
+        SCHEMA_YEAR,SCHEMA_CAL,CAL_ACCEPTED_STATUS,ARCO_ACCEPTED_STATUS,
+        ARCO_SNAPSHOT_NAME,ARCO_URL,sha_array,require_exact_calendar,
+        original_farm_mw_from_u100_v100,f64sha,micro_mw_source_sha,
+    )
+    from .f3d_era5_sharded_acquisition import PY_NEXUS_RECOVERED_2023_MONTH_SHA
+    folder=Path(folder)
+    check(year in (2022,2024) and
+          manifest.get("schema_version")==SCHEMA_YEAR and
+          manifest.get("status")==ARCO_ACCEPTED_STATUS and
+          manifest.get("year")==year and
+          manifest.get("source_url")==ARCO_URL and
+          manifest.get("source_CDS_netCDF_monthly_original") is False and
+          manifest.get("source_ERA5_single_level_ARCO_repackaged_product") is True and
+          manifest.get("full_UTC_calendar_year_no_gaps") is True and
+          manifest.get("annual_UTC_hours")==YEARS[year] and
+          manifest.get("original_source_calendar_UTC_hours")==YEARS[year] and
+          manifest.get("complete_industrial_site_validation") is False and
+          manifest.get("whole_plant_LCA_TEA_or_methanol_economic_release_allowed") is False,
+          "ARCO annual original provider classification, scope or UTC hours invalid")
+
+    original_cal=folder/"ARCO_2023_original_CDS_calibration_receipt.json"
+    check(original_cal.is_file() and not original_cal.is_symlink() and
+          sha(original_cal)==manifest.get("source_2023_full_calibration_file_SHA256"),
+          "actual original 2023 CDS-to-ARCO full calibration receipt SHA missing")
+    cal=json.loads(original_cal.read_text(encoding="utf-8"))
+    check(cal.get("schema_version")==SCHEMA_CAL and
+          cal.get("status")==CAL_ACCEPTED_STATUS and
+          cal.get("year")==2023 and
+          cal.get("source_url")==ARCO_URL and
+          cal.get("original_2023_1W_sha256_from_source_months")==EXPECTED_2023_WIND_MICROMW_SHA and
+          cal.get("ARCO_2023_1W_sha256")==EXPECTED_2023_WIND_MICROMW_SHA and
+          cal.get("modelled_wind_1W_identical_hours")==8760 and
+          cal.get("full_8760h_2023_ARCO_matches_CDS_model_at_1W_and_four_component_tolerance") is True and
+          cal.get("original_source_calendar_UTC_hours")==8760 and
+          all(v is True for v in cal.get("component_equivalence_within_1e_minus_5_m_per_s",{}).values()) and
+          len(cal.get("component_equivalence_within_1e_minus_5_m_per_s",{}))==4,
+          "full 2023 source reanalysis from original CDS monthly fields to ARCO is not certified")
+    originals=cal.get("original_2023_PyNEXUS_monthly_CDS_SHA256",{})
+    check(set(originals)=={str(i) for i in range(1,13)} and
+          all(originals[str(i)].get("sha256")==PY_NEXUS_RECOVERED_2023_MONTH_SHA[i]
+              for i in range(1,13)),
+          "2023 ARCO proof lacks exact twelve frozen CDS original monthly SHA anchors")
+
+    snapshot=folder/ARCO_SNAPSHOT_NAME.format(year=year)
+    check(snapshot.is_file() and not snapshot.is_symlink() and
+          sha(snapshot)==manifest.get("source_point_netCDF_snapshot_SHA256"),
+          "actual ARCO provider point NetCDF snapshot bytes changed")
+    src=manifest.get("source_coordinates_and_variables",{})
+    check(src.get("latitude")==52.5 and src.get("longitude")==3.5 and
+          set(src.get("field_names",{}))=={"u10","v10","u100","v100"} and
+          set(manifest.get("source_raw_ARCO_point_component_sha256",{}))==
+          {"u10","v10","u100","v100"},
+          "ARCO source point/field audit not identical to original PyNEXUS site representation")
+    with xr.open_dataset(snapshot) as ds:
+        check(set(ds.data_vars)=={"u10","v10","u100","v100"} and
+              ds.attrs.get("source_URL")==ARCO_URL and
+              float(ds.attrs.get("lat",0))==52.5 and
+              float(ds.attrs.get("lon",0))==3.5 and
+              ds.attrs.get("native_CDS_monthly_original")=="false",
+              "ARCO source snapshot not original reanalysis point extraction")
+        require_exact_calendar(ds["time"].values,year)
+        arrays={name:np.asarray(ds[name].values) for name in
+                ("u10","v10","u100","v100")}
+    for name,arr in arrays.items():
+        check(arr.shape==(YEARS[year],) and np.isfinite(arr).all() and
+              sha_array(arr)==manifest["source_raw_ARCO_point_component_sha256"][name] and
+              str(arr.dtype)==manifest["source_raw_ARCO_point_component_dtype"][name],
+              "ARCO "+name+" native-component SHA/dtype/UTC hours inconsistent")
+    wind=original_farm_mw_from_u100_v100(arrays["u100"],arrays["v100"])
+    check(f64sha(wind)==manifest.get("normalized_wind_float64_SHA256") and
+          micro_mw_source_sha(wind)==manifest.get("normalized_wind_1W_quantized_SHA256"),
+          "independent ARCO 120m model from original 100m wind vectors differs from annual source")
+    normalized=folder/"normalized_UTC_wind.csv"
+    check(normalized.is_file() and not normalized.is_symlink() and
+          sha(normalized)==manifest.get("normalized_csv_SHA256"),
+          "ARCO normalized year hourly source CSV SHA changed")
+    independently=validate_hourly_csv(normalized,year,"wind_available_mw",cap=MAX_WIND_MW)
+    check(independently["hours"]==YEARS[year] and
+          independently["float64_le_sha256"]==f64sha(wind),
+          "ARCO reconstructed 2022/2024 hourly source CSV differs from archived NetCDF")
+    return {
+        "original_documents_count":1,
+        "normalized_float64_sha256":manifest["normalized_wind_float64_SHA256"],
+        "original_file_sha256":[manifest["source_point_netCDF_snapshot_SHA256"]],
+        "full_UTC_hours":YEARS[year],
+        "normalized_csv_sha256":manifest["normalized_csv_SHA256"],
+        "wind_provider_representation":"OFFICIAL_CDS_ARCO_GEOCHUNKED_REPACKAGED_ERA5_POINT_NOT_MONTHLY_CDS_NETCDF",
+        "full_2023_original_CDS_to_ARCO_8760h_calibration_receipt_sha256":
+            manifest["source_2023_full_calibration_file_SHA256"],
+        "actual_original_2022_2024_ARCO_historical_hourly_source_snapshot_verified":True,
+        "original_2023_CDS_is_separate_from_alternative_2022_2024_ARCO_product":True,
+    }
+
+
 def verify_one(folder,year,kind):
     folder=Path(folder)
     path=folder/"provenance.json"
     data=json.loads(path.read_text())
     check(data.get("year")==year,kind+" provider year mismatch")
+    # ARCO is an explicitly different product representation and must be
+    # independently reverified, not mislabelled as 12 native monthly CDS NCs.
+    if kind=="wind" and data.get("schema_version")==(
+        "ptxflex.f3d_ARCO_hourly_point_year_reanalysis_snapshot.v1"):
+        return verify_arco_alternate_year(folder,year,data)
     if kind=="price":
         check(data.get("schema_version")=="ptxflex.f3d_entsoe_native_monthly_price_source.v1", "wrong original A44 price source")
         docs=data.get("raw_monthly_documents")
@@ -138,6 +248,10 @@ def verify_pair(year,price_root,wind_root,reference_price_root,reference_wind_ro
         "2023_source_equivalence_verified_at_1W_quantized_MW_resolution_only":True,
         "year_price":price,
         "year_wind":wind,
+        "year_wind_provider_representation":wind.get(
+            "wind_provider_representation","ORIGINAL_MONTHLY_CDS_ERA5_NETCDF"),
+        "year_wind_alternate_ARCO_calibrated_2023_original_8760h":
+            wind.get("actual_original_2022_2024_ARCO_historical_hourly_source_snapshot_verified",False),
         "source_price_and_weather_calendar_and_original_hashes_verified":True,
         "private_original_provider_files_retained_in_ephemeral_runner_not_durable_escrow":True,
         "actual_industrial_plant_hydrogen_measurements_present":False,
