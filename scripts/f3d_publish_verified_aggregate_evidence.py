@@ -18,12 +18,6 @@ import math
 import os
 from pathlib import Path
 
-from ptxflex.f3d_live_provider_pair_gate import verify_pair
-from ptxlens.f3d_external_year_independent_review import (
-    check_result,review_four_cases,
-)
-from ptxlens.f3d_external_year_private_witness_replay import review_private_witness
-
 SCHEMA="oem.ptx.f3d_2022_2024_public_source_aggregate_independent_replay.v1"
 PUBLIC_JSON="F3D_ARCO_2022_2024_PUBLIC_VERIFIED_AGGREGATES_v1.json"
 PUBLIC_MD="F3D_ARCO_2022_2024_PUBLIC_VERIFIED_RESULTS_v1.md"
@@ -304,6 +298,14 @@ def make_report(blob):
 
 
 def build(private_root):
+    # PtXLens is required only at runtime for full local source-data replay;
+    # importing/test-collecting this exporter never downloads or imports
+    # proprietary source files, nor requires PtXLens in unrelated test jobs.
+    from ptxflex.f3d_live_provider_pair_gate import verify_pair
+    from ptxlens.f3d_external_year_independent_review import (
+        check_result,review_four_cases,
+    )
+    from ptxlens.f3d_external_year_private_witness_replay import review_private_witness
     private_root=Path(private_root).resolve(strict=True)
     require(private_root.is_dir(),"private original source directory missing")
     result_root=private_root/"results"
