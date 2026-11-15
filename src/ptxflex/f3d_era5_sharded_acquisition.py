@@ -139,7 +139,7 @@ def seed_original_2023_from_pynexus_zip(archive, output_root):
             filehash(archive)==FROZEN_2023_CDS_RECOVERY_ZIP_SHA,
             "uploaded original PyNEXUS full 2023 monthly ZIP SHA mismatch")
     pattern=re.compile(
-        r"^era5_2023-(\\d\\d)-01_2023-\\1-(\\d\\d)_52\\.5_3\\.5\\.nc$"
+        r"^era5_2023-(\d\d)-01_2023-\1-(\d\d)_52\.5_3\.5\.nc$"
     )
     # No zip-slip. Uncompressed original NetCDF each month is bounded.
     orig_parent=root/"_original_months"
@@ -179,7 +179,7 @@ def seed_original_2023_from_pynexus_zip(archive, output_root):
             "source_zip_member_file_bytes_preserved":True,
             "no_new_CDS_api_requests_used":True
         }
-        (root/"source_recovery.json").write_text(json.dumps(status,indent=2,sort_keys=True)+"\\n")
+        (root/"source_recovery.json").write_text(json.dumps(status,indent=2,sort_keys=True)+"\n")
         return result
     except Exception:
         # Never convert invalid partial original into an accepted annual record.
@@ -251,7 +251,7 @@ def seed_original_2023_from_pynexus_folder(monthly_folder,output_root):
        "no_fresh_CDS_requests_made":True,
     }
     (out/"source_recovery.json").write_text(
-        json.dumps(record,indent=2,sort_keys=True)+"\\n",encoding="utf-8"
+        json.dumps(record,indent=2,sort_keys=True)+"\n",encoding="utf-8"
     )
     return result
 
