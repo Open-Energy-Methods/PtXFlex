@@ -184,6 +184,8 @@ def report(rows):
         "**not uncertainty intervals** for future prices, wind, H2 demand, "
         "equipment reliability, manufacturing or installation costs.",
         "",
+        "This retrospective two-year source comparison is not a forecast of future "
+        "prices, offshore wind generation, H2 service or investment returns. "
         "Only two separate years (2022 and 2024) are represented. They cannot "
         "support a calibrated probability distribution, statistically robust "
         "future market interval, climate uncertainty band or a causal "
