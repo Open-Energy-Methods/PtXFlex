@@ -19,6 +19,39 @@ function Need([bool]$ok,[string]$reason) { if(-not $ok) { throw $reason } }
 function Ensure([string]$path) { if(-not (Test-Path $path)) { New-Item -ItemType Directory -Path $path -Force | Out-Null } }
 function Run([string]$exe,[string[]]$argv) { & $exe @argv; if($LASTEXITCODE -ne 0) { throw "Command failed; inspect error output (exit $LASTEXITCODE)" } }
 function MonthRoot([int]$y,[int]$m) { Join-Path $PrivateRoot ("era5-{0}-{1:d2}" -f $y,$m) }
+function Verified2023Recovery() {
+  $recovery=Join-Path $PrivateRoot "wind-2023-recovered"
+  if(-not (Test-Path $recovery)) { return $false }
+  $p=Join-Path $recovery "complete\provenance.json"
+  $e=Join-Path $recovery "source_recovery.json"
+  Need ((Test-Path $p -PathType Leaf) -and (Test-Path $e -PathType Leaf)) "Partial 2023 recovered source; preserve directory and inspect the original error"
+  $j=Get-Content -LiteralPath $p -Raw | ConvertFrom-Json
+  $original=Get-Content -LiteralPath $e -Raw | ConvertFrom-Json
+  $expectedSHA="9e0e95ddf9c70547ab6ce696f52a82dc312f11d7cd760de5dc779c6ac2b43c9c"
+  Need ($j.schema_version -eq "ptxflex.f3d_era5_100m_120m_native_original_monthly_source.v1" -and
+        [int]$j.year -eq 2023 -and [int]$j.annual_utc_hours -eq 8760 -and
+        $j.status -eq "SOURCE_RECONSTRUCTED_NOT_EXTERNALLY_REVIEWED" -and
+        $j.full_UTC_calendar_year_no_gaps -eq $true -and
+        $j.original_2023_wind_microMW_reference_match -eq $true -and
+        $j.normalized_wind_1W_quantized_SHA256 -eq $expectedSHA) "2023 annual source has not passed original PyNEXUS 8,760-hour 1W SHA verification"
+  Need ($original.schema_version -eq "ptxflex.f3d_2023_exact_PyNEXUS_original_CDS_12_month_GitHub_extraction.v1" -and
+        $original.original_2023_1W_model_reconstruction_PASSED -eq $true -and
+        $original.no_fresh_CDS_requests_made -eq $true) "2023 original PyNEXUS recovery archive receipt is missing or incomplete"
+  $csv=Join-Path $recovery "complete\normalized_UTC_wind.csv"
+  Need ((Test-Path $csv -PathType Leaf) -and
+        (Get-FileHash -LiteralPath $csv -Algorithm SHA256).Hash.ToLowerInvariant() -eq $j.normalized_csv_SHA256) "2023 normalized hourly wind CSV does not match original SHA provenance"
+  $raw=Join-Path $recovery "complete\original_monthly_netcdf"
+  Need (Test-Path $raw -PathType Container) "2023 original NetCDF directory is missing"
+  $monthly=@(Get-ChildItem -LiteralPath $raw -File -Filter "*.nc")
+  Need ($monthly.Count -eq 12 -and $j.source_monthly_files.Count -eq 12) "2023 source must contain exactly 12 original monthly NetCDF and manifest records"
+  $names=@{}
+  foreach($m in $monthly) { $names[$m.Name]=$m }
+  foreach($entry in $j.source_monthly_files) {
+    Need ($names.ContainsKey($entry.filename)) "2023 source missing original month $($entry.filename)"
+    Need ((Get-FileHash -LiteralPath $names[$entry.filename].FullName -Algorithm SHA256).Hash.ToLowerInvariant() -eq $entry.sha256) "2023 source month $($entry.filename) has changed SHA"
+  }
+  return $true
+}
 function SourceOK([int]$y,[int]$m) {
   $dir=MonthRoot $y $m
   if(-not (Test-Path $dir)) { return $false }
@@ -62,8 +95,14 @@ switch($Phase) {
  }
  "Recover2023" {
    $dest=Join-Path $PrivateRoot "wind-2023-recovered"
-   Need (-not (Test-Path $dest)) "Do not overwrite 2023 original source recovery"
-   Run $python @("-m","ptxflex.f3d_era5_sharded_acquisition","--year","2023","--seed-original-2023-folder",(Join-Path $PrivateRoot "pynexus-original-2023-netcdf"),"--output",$dest)
+   if(Test-Path $dest) {
+     Need (Verified2023Recovery) "2023 original restoration exists but is not certified: do not overwrite"
+     Write-Host "Original 2023 CDS source already recovered and SHA verified (8,760 UTC hours); reused without overwriting"
+   } else {
+     Run $python @("-m","ptxflex.f3d_era5_sharded_acquisition","--year","2023","--seed-original-2023-folder",(Join-Path $PrivateRoot "pynexus-original-2023-netcdf"),"--output",$dest)
+     Need (Verified2023Recovery) "Original 2023 restoration did not pass all source hashes"
+     Write-Host "Original 2023 CDS source recovery passed 8,760 UTC hours and 12 monthly NetCDF SHA checks"
+   }
  }
  { $_ -eq "Fetch2022" -or $_ -eq "Fetch2024" } {
    $year=if($Phase -eq "Fetch2022"){2022}else{2024}
@@ -140,7 +179,13 @@ switch($Phase) {
  "Status" {
    Write-Host "Private original provider data: $PrivateRoot"
    Write-Host "PtXFlex Python environment installed:" (Test-Path $python)
-   Write-Host "Original 2023 wind recovered:" (Test-Path (Join-Path $PrivateRoot "wind-2023-recovered\complete\provenance.json"))
+   try {
+     $ok=Verified2023Recovery
+     Write-Host "Original 2023 wind independently source-hash verified:" $ok
+   } catch {
+     Write-Warning ("Original 2023 source is NOT scientifically admitted: " + $_.Exception.Message)
+     Write-Host "Original 2023 wind independently source-hash verified:" $false
+   }
    foreach($year in @(2022,2024)) {
      $passed=0
      foreach($m in 1..12){ try { if(SourceOK $year $m){$passed++} } catch { Write-Warning ("Unverified source month {0}-{1:d2}: {2}" -f $year,$m,$_.Exception.Message) } }
