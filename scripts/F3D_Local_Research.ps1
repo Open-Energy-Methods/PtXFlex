@@ -2,7 +2,7 @@
 # Launch from the PtXFlex clone or pass -FlexRoot and -LensRoot.
 [CmdletBinding()]
 param(
- [ValidateSet("Install","Download","Recover2023","Fetch2022","Fetch2024","Assemble2022","Assemble2024","Verify2022","Verify2024","Solve2022","Solve2024","Review","Status")]
+ [ValidateSet("Install","Download","Recover2023","PilotARCO","Fetch2022","Fetch2024","Assemble2022","Assemble2024","Verify2022","Verify2024","Solve2022","Solve2024","Review","Status")]
  [string]$Phase="Status",
  [int]$Month=0,
  [string]$PrivateRoot=(Join-Path $HOME "PtX_PRIVATE_RESEARCH"),
@@ -103,6 +103,28 @@ switch($Phase) {
      Need (Verified2023Recovery) "Original 2023 restoration did not pass all source hashes"
      Write-Host "Original 2023 CDS source recovery passed 8,760 UTC hours and 12 monthly NetCDF SHA checks"
    }
+ }
+ "PilotARCO" {
+   # A separate OFFICIAL Copernicus ARCO fast-point access test. Does not
+   # replace authoritative 2023 CDS or produce 2022/2024 source artifacts.
+   Need (Verified2023Recovery) "Original source-verified 2023 CDS required before testing ARCO"
+   $reference=Join-Path $PrivateRoot "wind-2023-recovered\complete\original_monthly_netcdf\era5_2023_01_u10_v10_u100_v100.nc"
+   Need (Test-Path $reference -PathType Leaf) "Missing January 2023 original source for ARCO calibration"
+   $output=Join-Path $PrivateRoot "arco-2023-jan-point-calibration-private.json"
+   Need (-not (Test-Path $output)) "Original ARCO source-comparison report already exists; preserve before a new test"
+   Write-Host "Installing Copernicus ARCO Zarr client locally (NO GitHub Actions minutes)"
+   Run $python @("-m","pip","install","zarr>=3,<4","fsspec>=2024.0","aiohttp>=3.9")
+   $secure=Read-Host "Copernicus CDS API access token for official ARCO point pilot (hidden)" -AsSecureString
+   try {
+     $credential=[System.Management.Automation.PSCredential]::new("cds",$secure)
+     $env:ERA5_API_KEY=$credential.GetNetworkCredential().Password
+     Need ($env:ERA5_API_KEY.Length -gt 10) "CDS token missing"
+     Run $python @("-m","ptxflex.f3d_era5_arco_pilot","--original-jan",$reference,"--output",$output)
+   } finally {
+     Remove-Item Env:ERA5_API_KEY -ErrorAction SilentlyContinue
+     Remove-Variable secure,credential -ErrorAction SilentlyContinue
+   }
+   Write-Host "ARCO January 2023 compared to REAL original source, read private report:" $output
  }
  { $_ -eq "Fetch2022" -or $_ -eq "Fetch2024" } {
    $year=if($Phase -eq "Fetch2022"){2022}else{2024}
