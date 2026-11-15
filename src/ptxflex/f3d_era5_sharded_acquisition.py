@@ -24,7 +24,7 @@ import time
 
 from .f3d_live_era5 import (
     YEARS,EXPECTED_2023_WIND_F64_SHA,REFERENCE_LAT,REFERENCE_LON,
-    FARM_LIMIT_MW,request_for,load_original_month,f64sha
+    FARM_LIMIT_MW,EXPECTED_2023_WIND_MICROMW_SHA,request_for,load_original_month,f64sha,micro_mw_source_sha
 )
 
 SOURCE="Copernicus ERA5 reanalysis-era5-single-levels"
@@ -137,6 +137,8 @@ def assemble_year(year,input_root,output_root):
         "source_monthly_files":[],
         "year":year,"status":"INCOMPLETE_ORIGINAL_ERA5_SOURCE_COLLECTION",
         "original_2023_wind_float64_reference_match":None,
+        "original_2023_wind_microMW_reference_match":None,
+        "original_2023_frozen_PyNEXUS_float64_SHA256":EXPECTED_2023_WIND_F64_SHA,
         "complete_industrial_site_validation":False,
         "native_ERA5_is_weather_reanalysis_not_plant_measurement":True,
         "original_PyNEXUS_100m_to_120m_alpha":0.11,
@@ -165,18 +167,22 @@ def assemble_year(year,input_root,output_root):
                   f" hours={len(part)} sha256={entry['sha256']}",flush=True)
         require(len(values)==YEARS[year],"year UTC hours missing or leap day truncated")
         digest=f64sha(values)
-        is_baseline=(digest==EXPECTED_2023_WIND_F64_SHA if year==2023 else None)
+        micro_digest=micro_mw_source_sha(values)
+        exact_f64=(digest==EXPECTED_2023_WIND_F64_SHA if year==2023 else None)
+        same_1W=(micro_digest==EXPECTED_2023_WIND_MICROMW_SHA if year==2023 else None)
         report.update({
             "annual_utc_hours":len(values),
             "normalized_wind_float64_SHA256":digest,
-            "original_2023_wind_float64_reference_match":is_baseline,
+            "normalized_wind_1W_quantized_SHA256":micro_digest,
+            "original_2023_wind_float64_reference_match":exact_f64,
+            "original_2023_wind_microMW_reference_match":same_1W,
             "full_UTC_calendar_year_no_gaps":True,
             "status":"SOURCE_RECONSTRUCTED_NOT_EXTERNALLY_REVIEWED"
         })
-        if year==2023 and not is_baseline:
-            report["status"]="ORIGINAL_PYNEXUS_2023_WIND_SHA_MISMATCH_NOT_ADMITTED"
-            raise ValueError("2023 original ERA5 source reproduces 8760h but DOES NOT match "
-                             "frozen PyNEXUS wind float64 SHA; do not promote external years")
+        if year==2023 and not same_1W:
+            report["status"]="2023_ORIGINAL_SOURCE_WIND_NUMERICAL_REPRODUCTION_FAILED"
+            raise ValueError("2023 original ERA5 source does NOT reproduce original "
+                             "PyNEXUS source to 1W quantized resolution; do not promote external years")
         with (output_root/"normalized_UTC_wind.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.writer(f)
             writer.writerow(["timestamp_utc","wind_available_mw"])
@@ -186,7 +192,7 @@ def assemble_year(year,input_root,output_root):
                                  format(v,".17g")])
         report["normalized_csv_SHA256"]=filehash(output_root/"normalized_UTC_wind.csv")
         print(f"ERA5_UTC_YEAR_ASSEMBLED year={year} hours={len(values)}"
-              f" original_2023_reference_match={is_baseline} source_f64_sha256={digest}",flush=True)
+              f" original_2023_1W_reference_match={same_1W} source_f64_sha256={digest}",flush=True)
         return report
     finally:
         (output_root/"provenance.json").write_text(
