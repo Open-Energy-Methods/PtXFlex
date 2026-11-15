@@ -6,10 +6,13 @@ The existing full-year acquisition remains unchanged until independent review.
 from __future__ import annotations
 
 import argparse
+import calendar
 import hashlib
 import json
 import os
 from pathlib import Path
+
+import numpy as np
 
 from ptxflex.f3d_live_era5 import YEARS, request_for, load_original_month, f64sha
 
@@ -46,6 +49,15 @@ def acquire_month(year: int, month: int, output_root: str | Path, client=None) -
         except Exception as exc:
             raise RuntimeError(f"ERA5 {year}-{month:02d} retrieval failed ({type(exc).__name__}); provider details suppressed") from None
         wind, details = load_original_month(target, year, month)
+        # Defense in depth: never accept a truncated or malformed month.
+        expected_hours = calendar.monthrange(year, month)[1] * 24
+        values = np.asarray(wind)
+        if (values.ndim != 1 or len(values) != expected_hours
+                or not np.issubdtype(values.dtype, np.number)
+                or not np.isfinite(values).all()
+                or details.get("month_UTC_hours") != expected_hours
+                or details.get("u10_v10_u100_v100_complete") is not True):
+            raise ValueError("ERA5 month fails independent UTC-hour and field-completeness gate")
         report["source_monthly_files"].append({
             "filename": target.name, "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
             "bytes": target.stat().st_size, "cds_request": request, **details,
