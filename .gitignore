@@ -15,3 +15,24 @@ private-source-escrow/
 *.zolca
 *.spold
 *.ecospold
+
+# F3-D local source-year private evidence: never push raw calendar arrays,
+# source provider ZIP/XML/NetCDF/Zarr, primal witnesses or reviewer detail.
+# Public output is built with allowlisted keys by the F3-D exporter.
+**/PtX_PRIVATE_RESEARCH/
+**/PRIVATE_F3D_*_primal.json
+**/PtXLens_ARCO_*_physical.json
+**/source-pair-ARCO-*.json
+**/PtXLens_four_case_ARCO_years_independent.json
+**/F3D_ARCO_20??_max_inventory.json
+**/F3D_ARCO_20??_usable_service.json
+**/arco-2023-jan-point-calibration-private.json
+**/wind-arco-2023-calibration/
+**/wind-arco-2022/
+**/wind-arco-2024/
+**/era5-2022-*/
+**/era5-2024-*/
+**/price-2022/
+**/price-2023/
+**/price-2024/
+**/wind-2023-recovered/
