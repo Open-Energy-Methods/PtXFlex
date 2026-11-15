@@ -10,7 +10,7 @@ description = "Research MILP for renewable hydrogen to methanol"
 dependencies = ["numpy>=1.24", "scipy>=1.11,<2"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "jsonschema>=4.21,<5", "PyYAML==6.0.2"]
+dev = ["pytest>=7", "jsonschema>=4.21,<5", "PyYAML==6.0.2", "pandas>=2.0,<3", "xarray>=2024.1,<2027"]
 contracts = ["jsonschema>=4.21,<5"]
 physics = ["CoolProp==8.0.0"]
 original-sources = ["PyYAML==6.0.2"]
