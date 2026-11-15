@@ -150,10 +150,6 @@ def try_lp_bound_fixed_binary_certificate(c,A,lb,ub,lo,hi,*,n,time_limit_s,
     upper=float(-root.fun)
     require(-1e-7<=upper<=1.000001,"LP relaxed service upper outside [0,1]")
     root_states=np.asarray(root.x[:n*DIM],dtype=np.float64).reshape(n,DIM)
-    pmin=float(np.min(hi[np.arange(n)*DIM+P]))  # upper P is pmax, NOT min load
-    # U is the commitment switch: pmin is recovered directly from linear
-    # constraint coefficient by the caller passing explicit min-load value.
-    # Avoid inference from the LP if not explicitly available.
     for policy in ("LP_commitment","always_committed"):
         uidx=np.arange(n)*DIM+U
         zidx=np.arange(n)*DIM+Z
