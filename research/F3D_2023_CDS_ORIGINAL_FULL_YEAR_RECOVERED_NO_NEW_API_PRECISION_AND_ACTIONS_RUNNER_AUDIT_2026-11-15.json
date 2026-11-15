@@ -1,0 +1,60 @@
+{
+  "schema_version": "oem.ptx.f3d_2023_original_PyNEXUS_CDS_source_precision_and_API_audit.v1",
+  "date_of_audit": "2026-11-15",
+  "original_2023_source": {
+    "pynexus_workflow_run": 40230838449,
+    "pynexus_monthly_CDS_source_artifact_id": 12653508461,
+    "pynexus_hourly_source_UTC_audit_artifact_id": 12653138512,
+    "monthly_source_artifact_expires_UTC": "2026-12-25T13:28:00Z",
+    "hours": 8760,
+    "original_month_count": 12,
+    "monthly_original_archive_SHA256": "730a7ae28c450e283f599043452e2fda350ca76f19a68bf62b32dbc0cf00491e",
+    "original_E_stage_b_zip_SHA256": "069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051",
+    "original_E_stage_b_wind_float64_SHA256": "abbfea17224cd92f694ed26b7a179ef7e35fff5a5bb17c6ee060a674c1977717",
+    "source_reconstructed_float64_SHA256": "975288c5ec5005c37e8008f435fc4583fd58673b04cdb15dc85751938b4430f1",
+    "original_and_reconstructed_quantized_one_watt_resolution_SHA256": "9e0e95ddf9c70547ab6ce696f52a82dc312f11d7cd760de5dc779c6ac2b43c9c",
+    "max_absolute_source_reconstruction_difference_MW": 8.526512829121202e-14,
+    "matching_quantized_hourly_wind_8760_of_8760": true,
+    "full_original_float64_bitwise_identity_asserted": false,
+    "new_CDS_2023_downloads_required": false,
+    "new_CDS_2023_inputs_distinct_from_original_2023_initial_raw_NetCDF_bytes": true
+  },
+  "failed_attempt": {
+    "pTxFlex_run": 43617006319,
+    "attempt": 4,
+    "ERA5_2023_verified_months": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "ERA5_2023_cancellation_time_UTC": "2026-11-15T00:12:50Z",
+    "ERA5_2023_cancelled_after_configured_timeout_minutes": 340,
+    "ERA5_2023_completed_8760h": false,
+    "ERA5_2022_completed": false,
+    "ERA5_2024_completed": false,
+    "ENTSOE_2022_2023_2024_A44_months_all_verified": true,
+    "ERA5_API_actually_called_for_2023_jan_apr": true,
+    "new_runner_failure": {
+      "observed_run_examples": [
+        43678505068,
+        43678508028
+      ],
+      "jobs_began_executable_steps": false,
+      "new_2023_month_recovery_API_calls_started": false,
+      "GitHub_Actions_runner_billing_or_policy_root_cause_confirmed": false,
+      "requires_org_owner_billing_quota_runner_settings_check": true
+    }
+  },
+  "scientific_method_change": {
+    "original_processing_order": "NetCDF float32 u100/v100 -> native float32 sqrt(u*u+v*v) -> float64 hub-height correction -> cubic turbine power",
+    "previous_incorrect_order": "cast original u100/v100 to float64 before sqrt; introduces up to approximately 3e-5 MW deviation",
+    "latest_code_uses_native_float32_speed_before_f64": true,
+    "source_wind_identity_gate": "8760-hour independently computed SHA256 of little-endian int64 np.rint(MW*1e6) compared to original E/ES model vector; 1-watt MW quantum",
+    "full_year_native_source_bytes_and_utc_coverage_verified_separately": true,
+    "no_model_CDS_source_2022_2024_numbers_reported": true,
+    "actual_hydrogen_industrial_site_validation": false,
+    "certified_multi_year_matched_service_E_vs_ES_profit": false,
+    "v1_0_release": false
+  }
+}
