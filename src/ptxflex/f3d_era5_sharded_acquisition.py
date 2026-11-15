@@ -21,6 +21,8 @@ import os
 from pathlib import Path
 import shutil
 import time
+import zipfile
+import re
 
 from .f3d_live_era5 import (
     YEARS,EXPECTED_2023_WIND_F64_SHA,REFERENCE_LAT,REFERENCE_LON,
@@ -115,6 +117,75 @@ def acquire_month(year,month,output):
             encoding="utf-8")
 
 
+# Exact historical recovered provider ZIP from PyNEXUS Oct 2026.
+# The 12 NetCDF members are renamed only for normalized local custody; the
+# bytes remain untouched and are SHA-checked as each original month.
+FROZEN_2023_CDS_RECOVERY_ZIP_SHA = (
+    "730a7ae28c450e283f599043452e2fda350ca76f19a68bf62b32dbc0cf00491e"
+)
+
+
+def seed_original_2023_from_pynexus_zip(archive, output_root):
+    """Recover original licensed 2023 monthly NetCDFs without CDS calls.
+
+    Strict original SHA, exactly 12 expected source names and source-year
+    UTC integrity. Calls assemble_year: original 2023 1-W provenance gate.
+    Output is private and contains the complete original source NetCDFs.
+    """
+    archive=Path(archive).resolve(strict=True)
+    root=Path(output_root).resolve()
+    require(not root.exists(), "will not overwrite restored source-year original")
+    require(archive.is_file() and not archive.is_symlink() and
+            filehash(archive)==FROZEN_2023_CDS_RECOVERY_ZIP_SHA,
+            "uploaded original PyNEXUS full 2023 monthly ZIP SHA mismatch")
+    pattern=re.compile(
+        r"^era5_2023-(\\d\\d)-01_2023-\\1-(\\d\\d)_52\\.5_3\\.5\\.nc$"
+    )
+    # No zip-slip. Uncompressed original NetCDF each month is bounded.
+    orig_parent=root/"_original_months"
+    rawdir=orig_parent/"original_monthly_netcdf"
+    rawdir.mkdir(parents=True,exist_ok=False)
+    try:
+        with zipfile.ZipFile(archive) as z:
+            files=[p for p in z.infolist() if not p.is_dir()]
+            require(len(files)==12,"recovered PyNEXUS annual source lacks exactly 12 original files")
+            months={}
+            for info in files:
+                found=pattern.fullmatch(info.filename)
+                require(found is not None and not info.filename.startswith("/"),
+                        "unexpected original PyNEXUS ERA5 ZIP member")
+                month=int(found.group(1)); last=int(found.group(2))
+                require(1<=month<=12 and month not in months and
+                        last==calendar.monthrange(2023,month)[1] and
+                        100<info.file_size<100_000_000,
+                        "original PyNEXUS monthly NetCDF date, size or duplicate invalid")
+                dest=rawdir/original_filename(2023,month)
+                with z.open(info) as incoming, dest.open("xb") as outgoing:
+                    shutil.copyfileobj(incoming,outgoing,1024*1024)
+                require(filehash(dest)==hashlib.sha256(dest.read_bytes()).hexdigest(),
+                        "recovered monthly source digest failed")
+                months[month]=info.filename
+            require(set(months)==set(range(1,13)),
+                    "original recovered PyNEXUS year missing at least one source month")
+        # Create separate completed directory, fail if source vector differs.
+        result=assemble_year(2023,orig_parent,root/"complete")
+        status={
+            "schema_version":"ptxflex.f3d_PyNEXUS_original_2023_recovered_NetCDF_archive.v1",
+            "original_PyNEXUS_CDS_artifact_SHA256":FROZEN_2023_CDS_RECOVERY_ZIP_SHA,
+            "original_recovered_member_names":{str(k):v for k,v in sorted(months.items())},
+            "original_2023_1W_model_calibration":result[
+                "original_2023_wind_microMW_reference_match"],
+            "original_2023_f64_byte_identity_NOT_claimed":True,
+            "source_zip_member_file_bytes_preserved":True,
+            "no_new_CDS_api_requests_used":True
+        }
+        (root/"source_recovery.json").write_text(json.dumps(status,indent=2,sort_keys=True)+"\\n")
+        return result
+    except Exception:
+        # Never convert invalid partial original into an accepted annual record.
+        raise
+
+
 def assemble_year(year,input_root,output_root):
     """Exact 12 ORIGINAL monthly NetCDF files -> paired-data-compatible year."""
     require(year in YEARS,"unregistered original ERA5 year")
@@ -206,10 +277,15 @@ def main(argv=None):
     sub=ap.add_mutually_exclusive_group(required=True)
     sub.add_argument("--month",type=int,help="Retrieve ONE genuine CDS NetCDF month")
     sub.add_argument("--assemble-input",help="Verify 12 original NetCDF months, build complete UTC year")
+    sub.add_argument("--seed-original-2023-zip",
+                     help="Import exact SHA-frozen 12-month PyNEXUS Oct 2026 original source ZIP; no CDS calls")
     ap.add_argument("--output",required=True)
     a=ap.parse_args(argv)
     if a.month is not None:
         report=acquire_month(a.year,a.month,a.output)
+    elif a.seed_original_2023_zip is not None:
+        require(a.year==2023,"frozen original source ZIP only contains 2023")
+        report=seed_original_2023_from_pynexus_zip(a.seed_original_2023_zip,a.output)
     else:
         report=assemble_year(a.year,a.assemble_input,a.output)
     print("ERA5 month-sharded status:",report["status"],"year",a.year)
