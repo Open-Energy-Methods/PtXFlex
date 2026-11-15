@@ -1,0 +1,142 @@
+name: F3-D ERA5 2023 CDS REAL monthly calls — timeout recovery and source calibration
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - '.github/workflows/f3d-era5-2023-sharded-recovery.yml'
+      - 'src/ptxflex/f3d_era5_sharded_acquisition.py'
+      - 'tests/test_f3d_era5_sharded_acquisition.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: era5-recovery-2023-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  hermetic_source_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install independent scientific calendar and native NetCDF regressions
+        run: python -m pip install -e '.[dev]' 'xarray>=2024.0' 'pandas>=2.0' 'netCDF4>=1.6'
+      - run: python -m pytest -q tests/test_f3d_era5_sharded_acquisition.py tests/test_f3d_live_provider_acquisition.py
+  monthly_2023:
+    needs: hermetic_source_tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 260
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        # Reuse source-verified Jan-Apr 2023 from cancelled initial annual job.
+        month: [5, 6, 7, 8, 9, 10, 11, 12]
+    env:
+      ERA5_API_KEY: ${{ secrets.ERA5_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]' 'cdsapi>=0.7.7' 'xarray>=2024.0' 'pandas>=2.0' 'netCDF4>=1.6'
+      - name: Require nonempty PRIVATE CDS organization secret without showing it
+        run: |
+          if [ -z "${ERA5_API_KEY}" ]; then echo "::error::ERA5_API_KEY secret unavailable"; exit 1; fi
+      - name: ACTUAL Copernicus CDS retrieve of one month — explicit call/complete log markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_era5_sharded_acquisition \
+            --year 2023 \
+            --month ${{ matrix.month }} \
+            --output "${RUNNER_TEMP}/era5-2023-month-${{ matrix.month }}"
+      - name: Archive ORIGINAL monthly NetCDF and cryptographic evidence; not long-term escrow
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-F3D-era5-2023-month-${{ matrix.month }}-original-NOT-releasable
+          path: ${{ runner.temp }}/era5-2023-month-${{ matrix.month }}/
+          if-no-files-found: warn
+          retention-days: 7
+  assemble_2023_source_baseline:
+    needs: monthly_2023
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]' 'xarray>=2024.0' 'pandas>=2.0' 'netCDF4>=1.6'
+      - name: Recover real Jan–Apr 2023 original NetCDF from previous cancelled run (NOT reconstructed or synthetic)
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-2023-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: '43617006319'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/era5-2023-original-months/
+      - name: Collect original verified May–Dec CDS months from THIS run
+        uses: actions/download-artifact@v4
+        with:
+          pattern: private-F3D-era5-2023-month-*-original-NOT-releasable
+          path: ${{ runner.temp }}/era5-2023-original-months/
+          merge-multiple: true
+      - name: Demand 12 source-original months, exact UTC chronology AND frozen original PyNEXUS 2023 wind SHA
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_era5_sharded_acquisition \
+            --year 2023 \
+            --assemble-input "${RUNNER_TEMP}/era5-2023-original-months" \
+            --output "${RUNNER_TEMP}/era5-2023-complete"
+      - name: Preserve originals, annual normalized wind and PASS/FAIL provenance (NOT user-durable)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-F3D-era5-original-2023-NOT-releasable
+          path: ${{ runner.temp }}/era5-2023-complete/
+          if-no-files-found: warn
+          retention-days: 7
+  strict_2023_price_and_wind_anchor:
+    needs: assemble_2023_source_baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Retrieve ORIGINAL calibrated 2023 ENTSO-E A44 source from previous valid run
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-entsoe-original-2023-NOT-releasable
+          repository: Open-Energy-Methods/PtXFlex
+          run-id: '43617006319'
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/price/
+      - name: Retrieve source-year COMPLETE ERA5 from the current monthly retrieval
+        uses: actions/download-artifact@v4
+        with:
+          name: private-F3D-era5-original-2023-NOT-releasable
+          path: ${{ runner.temp }}/wind/
+      - name: Independent 2023 original 8760-hour price AND wind SHA gate
+        run: |
+          python -m ptxflex.f3d_live_provider_pair_gate \
+            --year 2023 --price-root "${RUNNER_TEMP}/price" \
+            --wind-root "${RUNNER_TEMP}/wind" \
+            --reference-price-root "${RUNNER_TEMP}/price" \
+            --reference-wind-root "${RUNNER_TEMP}/wind" \
+            --output "${RUNNER_TEMP}/F3D_2023_verified_original_market_wind_calendar_only.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F3D-2023-genuine-provider-original-price-wind-verified-only
+          path: ${{ runner.temp }}/F3D_2023_verified_original_market_wind_calendar_only.json
+          retention-days: 30
+          if-no-files-found: error
