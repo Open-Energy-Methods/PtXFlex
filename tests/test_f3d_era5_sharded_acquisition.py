@@ -91,11 +91,12 @@ def test_synthetic_2024_leap_includes_8784_hours_and_feb_29(tmp_path):
 def test_source_2023_not_misrepresented_if_missing_original_frozen_SHA(tmp_path):
     source=fake_twelve(tmp_path,2023)
     out=tmp_path/"synthetic_annual_2023"
-    with pytest.raises(ValueError,match="DOES NOT match"):
+    with pytest.raises(ValueError,match="does NOT reproduce original PyNEXUS source to 1W quantized resolution"):
         a.assemble_year(2023,source,out)
     provenance=json.loads((out/"provenance.json").read_text())
-    assert provenance["status"]=="ORIGINAL_PYNEXUS_2023_WIND_SHA_MISMATCH_NOT_ADMITTED"
+    assert provenance["status"]=="2023_ORIGINAL_SOURCE_WIND_NUMERICAL_REPRODUCTION_FAILED"
     assert provenance["original_2023_wind_float64_reference_match"] is False
+    assert provenance["original_2023_wind_microMW_reference_match"] is False
     assert not (out/"normalized_UTC_wind.csv").exists()
 
 
