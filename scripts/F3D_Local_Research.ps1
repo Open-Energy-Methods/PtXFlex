@@ -2,7 +2,7 @@
 # Launch from the PtXFlex clone or pass -FlexRoot and -LensRoot.
 [CmdletBinding()]
 param(
- [ValidateSet("Install","Download","Recover2023","PilotARCO","Fetch2022","Fetch2024","Assemble2022","Assemble2024","Verify2022","Verify2024","Solve2022","Solve2024","Review","Status")]
+ [ValidateSet("Install","Download","Recover2023","PilotARCO","CalibrateARCO2023","FetchARCO2022","FetchARCO2024","VerifyARCO2022","VerifyARCO2024","SolveARCO2022","SolveARCO2024","ReviewARCO","Fetch2022","Fetch2024","Assemble2022","Assemble2024","Verify2022","Verify2024","Solve2022","Solve2024","Review","Status")]
  [string]$Phase="Status",
  [int]$Month=0,
  [string]$PrivateRoot=(Join-Path $HOME "PtX_PRIVATE_RESEARCH"),
@@ -126,6 +126,113 @@ switch($Phase) {
    }
    Write-Host "ARCO January 2023 compared to REAL original source, read private report:" $output
  }
+ "CalibrateARCO2023" {
+   Need (Verified2023Recovery) "The 12 original CDS 2023 NetCDFs must be source verified"
+   $pilot=Join-Path $PrivateRoot "arco-2023-jan-point-calibration-private.json"
+   Need (Test-Path $pilot -PathType Leaf) "Run PilotARCO original January source comparison first"
+   $pilotReport=Get-Content -LiteralPath $pilot -Raw | ConvertFrom-Json
+   Need ($pilotReport.status -eq "JAN2023_1W_CALIBRATION_PASS_ONLY_FULL_YEAR_NOT_YET_VALIDATED" -and
+         $pilotReport.ARCO_Jan2023_wind_1W_quantized_matches_original_CDS_for_every_hour -eq $true) "The real original January ARCO/Copernicus test has not passed"
+   $dest=Join-Path $PrivateRoot "wind-arco-2023-calibration"
+   Need (-not (Test-Path $dest)) "Do not overwrite original whole-year ARCO calibration. Review the existing provenance."
+   $original=Join-Path $PrivateRoot "wind-2023-recovered\complete\original_monthly_netcdf"
+   $secure=Read-Host "CDS API token for ARCO 8760h original-source validation (hidden)" -AsSecureString
+   try {
+     $credential=[System.Management.Automation.PSCredential]::new("cds",$secure)
+     $env:ERA5_API_KEY=$credential.GetNetworkCredential().Password
+     Need ($env:ERA5_API_KEY.Length -gt 10) "CDS personal API key missing"
+     Run $python @("-m","ptxflex.f3d_era5_arco_year",
+       "--year","2023","--reference-original-2023-netcdf-folder",$original,
+       "--output",$dest)
+   } finally {
+     Remove-Item Env:ERA5_API_KEY -ErrorAction SilentlyContinue
+     Remove-Variable secure,credential -ErrorAction SilentlyContinue
+   }
+   $out=Get-Content -LiteralPath (Join-Path $dest "provenance.json") -Raw | ConvertFrom-Json
+   Need ($out.status -eq "ARCO_FULL_2023_8760H_CDS_NUMERICALLY_EQUIVALENT_1W" -and
+         $out.modelled_wind_1W_identical_hours -eq 8760 -and
+         $out.full_8760h_2023_ARCO_matches_CDS_model_at_1W_and_four_component_tolerance -eq $true) "Full original 2023 ARCO source equivalence did not pass; do not use alternative years"
+   Write-Host "FULL 2023 ARCO-to-CDS 8,760h and all four wind components verified"
+ }
+ { $_ -eq "FetchARCO2022" -or $_ -eq "FetchARCO2024" } {
+   $year=if($Phase -eq "FetchARCO2022"){2022}else{2024}
+   $cal=Join-Path $PrivateRoot "wind-arco-2023-calibration\provenance.json"
+   Need (Test-Path $cal -PathType Leaf) "First perform CalibrateARCO2023 across ALL 8,760 original source hours"
+   $proof=Get-Content -LiteralPath $cal -Raw | ConvertFrom-Json
+   Need ($proof.status -eq "ARCO_FULL_2023_8760H_CDS_NUMERICALLY_EQUIVALENT_1W" -and
+         $proof.modelled_wind_1W_identical_hours -eq 8760 -and
+         $proof.full_8760h_2023_ARCO_matches_CDS_model_at_1W_and_four_component_tolerance -eq $true) "Not original full-year CDS-to-ARCO calibrated; no alternate source year allowed"
+   $target=Join-Path $PrivateRoot "wind-arco-$year"
+   Need (-not (Test-Path $target)) "Do not overwrite original $year ARCO point acquisition; inspect and preserve previous output"
+   $secure=Read-Host "CDS ARCO personal access token (hidden)" -AsSecureString
+   try {
+     $credential=[System.Management.Automation.PSCredential]::new("cds",$secure)
+     $env:ERA5_API_KEY=$credential.GetNetworkCredential().Password
+     Need ($env:ERA5_API_KEY.Length -gt 10) "CDS token missing"
+     Run $python @("-m","ptxflex.f3d_era5_arco_year",
+       "--year","$year","--verified-2023-ARCO-calibration",$cal,"--output",$target)
+   } finally {
+     Remove-Item Env:ERA5_API_KEY -ErrorAction SilentlyContinue
+     Remove-Variable secure,credential -ErrorAction SilentlyContinue
+   }
+   Write-Host "Fast ARCO whole-year source acquired: $year. Next VerifyARCO$year; independent source checks are mandatory."
+ }
+ { $_ -eq "VerifyARCO2022" -or $_ -eq "VerifyARCO2024" } {
+   $year=if($Phase -eq "VerifyARCO2022"){2022}else{2024}
+   $out=Join-Path $PrivateRoot "results\source-pair-ARCO-$year.json"
+   Need (-not (Test-Path $out)) "Cannot overwrite already audited alternative provider year"
+   Ensure (Split-Path $out -Parent)
+   Run $python @("-m","ptxflex.f3d_live_provider_pair_gate",
+     "--year","$year",
+     "--price-root",(Join-Path $PrivateRoot "price-$year"),
+     "--wind-root",(Join-Path $PrivateRoot "wind-arco-$year"),
+     "--reference-price-root",(Join-Path $PrivateRoot "price-2023"),
+     "--reference-wind-root",(Join-Path $PrivateRoot "wind-2023-recovered\complete"),
+     "--output",$out)
+   Write-Host "REAL $year provider A44 price + independent 2023-calibrated ARCO wind pair verified."
+ }
+ { $_ -eq "SolveARCO2022" -or $_ -eq "SolveARCO2024" } {
+   $year=if($Phase -eq "SolveARCO2022"){2022}else{2024}
+   Need (Test-Path (Join-Path $PrivateRoot "results\source-pair-ARCO-$year.json")) "VerifyARCO$year must pass before any annual source-year MILP"
+   foreach($mode in @("max_inventory","usable_service")){
+     $result=Join-Path $PrivateRoot ("results\F3D_ARCO_{0}_{1}.json" -f $year,$mode)
+     $witness=Join-Path $PrivateRoot ("results\PRIVATE_F3D_ARCO_{0}_{1}_primal.json" -f $year,$mode)
+     Need (-not (Test-Path $result) -and -not (Test-Path $witness)) "Do not overwrite a prior annual source-certified MILP or private primal"
+     Run $python @("-m","ptxflex.f3d_year_matched_service",
+       "--year","$year","--mode",$mode,
+       "--price-root",(Join-Path $PrivateRoot "price-$year"),
+       "--wind-root",(Join-Path $PrivateRoot "wind-arco-$year"),
+       "--reference-price-root",(Join-Path $PrivateRoot "price-2023"),
+       "--reference-wind-root",(Join-Path $PrivateRoot "wind-2023-recovered\complete"),
+       "--selection-time-limit","3600","--dispatch-time-limit","3600",
+       "--private-witness-out",$witness,"--output",$result)
+   }
+ }
+ "ReviewARCO" {
+   $resultroot=Join-Path $PrivateRoot "results"
+   $reports=@()
+   foreach($year in @(2022,2024)){
+     foreach($mode in @("max_inventory","usable_service")){
+       $report=Join-Path $resultroot ("F3D_ARCO_{0}_{1}.json" -f $year,$mode)
+       $witness=Join-Path $resultroot ("PRIVATE_F3D_ARCO_{0}_{1}_primal.json" -f $year,$mode)
+       Need (Test-Path $report -PathType Leaf) "Source-year ARCO MILP aggregate report missing"
+       Need (Test-Path $witness -PathType Leaf) "Private ARCO primal witness missing"
+       $reports+=@($report)
+       $review=Join-Path $resultroot ("PtXLens_ARCO_{0}_{1}_physical.json" -f $year,$mode)
+       Need (-not (Test-Path $review)) "Do not overwrite an existing source-year independent physical review"
+       Run $python @("-m","ptxlens.f3d_external_year_private_witness_replay",
+         "--witness",$witness,"--aggregate-report",$report,
+         "--private-price",(Join-Path $PrivateRoot "price-$year\normalized_UTC_price.csv"),
+         "--private-wind",(Join-Path $PrivateRoot "wind-arco-$year\normalized_UTC_wind.csv"),
+         "--output",$review)
+     }
+   }
+   $combined=Join-Path $resultroot "PtXLens_four_case_ARCO_years_independent.json"
+   Need (-not (Test-Path $combined)) "Cannot overwrite an existing independent 4-case review"
+   $argv=@("-m","ptxlens.f3d_external_year_independent_review","--files")+$reports+@("--output",$combined)
+   Run $python $argv
+   Write-Host "Independent source-proven physical/primal and dual economic source-year review completed; no site or v1 release implied."
+ }
  { $_ -eq "Fetch2022" -or $_ -eq "Fetch2024" } {
    $year=if($Phase -eq "Fetch2022"){2022}else{2024}
    Need ($Month -ge 0 -and $Month -le 12) "Month must be 0 (all months) or 1..12"
@@ -207,6 +314,21 @@ switch($Phase) {
    } catch {
      Write-Warning ("Original 2023 source is NOT scientifically admitted: " + $_.Exception.Message)
      Write-Host "Original 2023 wind independently source-hash verified:" $false
+   }
+   $cal=Join-Path $PrivateRoot "wind-arco-2023-calibration\provenance.json"
+   if(Test-Path $cal -PathType Leaf){
+     $p=Get-Content -LiteralPath $cal -Raw | ConvertFrom-Json
+     Write-Host "ARCO 2023 original full-year 8,760-hour calibration status:" $p.status
+     Write-Host "ARCO 2023 original model 1W matched hours:" $p.modelled_wind_1W_identical_hours
+   } else {
+     Write-Host "ARCO full-year 2023 calibration: NOT RUN (January-only pilot does NOT count)"
+   }
+   foreach($year in @(2022,2024)){
+     $filename=Join-Path $PrivateRoot ("wind-arco-$year\provenance.json")
+     if(Test-Path $filename -PathType Leaf){
+       $p=Get-Content -LiteralPath $filename -Raw | ConvertFrom-Json
+       Write-Host "ARCO $year complete UTC-hour source status:" $p.status
+     } else { Write-Host "ARCO $year source: NOT ACQUIRED" }
    }
    foreach($year in @(2022,2024)) {
      $passed=0
