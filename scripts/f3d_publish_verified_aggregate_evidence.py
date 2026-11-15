@@ -15,7 +15,6 @@ import argparse
 import hashlib
 import json
 import math
-import os
 from pathlib import Path
 
 SCHEMA="oem.ptx.f3d_2022_2024_public_source_aggregate_independent_replay.v1"
@@ -298,6 +297,8 @@ def make_report(blob):
 
 
 def build(private_root):
+    private_root=Path(private_root).resolve(strict=True)
+    require(private_root.is_dir(),"private original source directory missing")
     # PtXLens is required only at runtime for full local source-data replay;
     # importing/test-collecting this exporter never downloads or imports
     # proprietary source files, nor requires PtXLens in unrelated test jobs.
@@ -306,8 +307,6 @@ def build(private_root):
         check_result,review_four_cases,
     )
     from ptxlens.f3d_external_year_private_witness_replay import review_private_witness
-    private_root=Path(private_root).resolve(strict=True)
-    require(private_root.is_dir(),"private original source directory missing")
     result_root=private_root/"results"
     all_reports=[]
     cases=[]
