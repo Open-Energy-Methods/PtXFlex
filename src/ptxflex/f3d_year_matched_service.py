@@ -365,6 +365,12 @@ def run_verified_year(year,mode,price_root,wind_root,reference_price_root,
         "original_2023_E_and_ES_source_parameters_reused_as_scenarios":True,
         "provider_pair_source_2023_reconstruction_and_calendar_verified":True,
         "source_A44_and_ERA5_provider_original_files_held_private":True,
+        "year_wind_provider_representation":gate["year_wind_provider_representation"],
+        "year_wind_original_monthly_CDS_NetCDF_not_ARCO":(
+            gate["year_wind_provider_representation"]=="ORIGINAL_MONTHLY_CDS_ERA5_NETCDF"),
+        "year_wind_ARCO_full_2023_original_CDS_8760h_calibration_required_and_source_checked":(
+            gate["year_wind_alternate_ARCO_calibrated_2023_original_8760h"]),
+        "ERA5_2022_2024_source_may_be_repackaged_ARCO_not_original_monthly_CDS":True,
         "E_price_blind_identical_model_H2_service_selection":service,
         "E":e,"E_plus_S":es,
         "mathematically_matched_exact_same_modelled_hourly_H2_target":True,
