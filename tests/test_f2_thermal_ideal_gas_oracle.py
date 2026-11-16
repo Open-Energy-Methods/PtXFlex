@@ -122,3 +122,36 @@ def test_no_ideal_gas_fallback_in_production(ideal_density, monkeypatch):
             cold_temperature_k=TCOLD,
             hot_temperature_k=THOT,
         )
+
+
+def test_inverse_rejects_marginally_infeasible_target_at_lower_boundary(ideal_density):
+    """No numerical allowance may misclassify a deficient bank as service-feasible."""
+    attainable = analytic_capacity(20.0)
+    # Smaller than the former 1e-10 relative feasibility allowance.
+    target = attainable * (1.0 + 5e-11)
+    with pytest.raises(ThermalCapacityError, match="infeasible"):
+        solve_maximum_heel_pressure(
+            target_usable_kg=target,
+            free_volume_m3=V,
+            maximum_pressure_bar_absolute=PMAX,
+            minimum_search_pressure_bar_absolute=20.0,
+            reference_temperature_k=313.0,
+            cold_temperature_k=TCOLD,
+            hot_temperature_k=THOT,
+        )
+
+
+def test_inverse_exact_lower_boundary_remains_feasible(ideal_density):
+    """The exact limiting heel pressure must not be rejected as infeasible."""
+    target = analytic_capacity(20.0)
+    result = solve_maximum_heel_pressure(
+        target_usable_kg=target,
+        free_volume_m3=V,
+        maximum_pressure_bar_absolute=PMAX,
+        minimum_search_pressure_bar_absolute=20.0,
+        reference_temperature_k=313.0,
+        cold_temperature_k=TCOLD,
+        hot_temperature_k=THOT,
+    )
+    assert result.maximum_permissible_heel_bar_absolute == pytest.approx(20.0)
+    assert result.usable_kg_at_limit >= target
