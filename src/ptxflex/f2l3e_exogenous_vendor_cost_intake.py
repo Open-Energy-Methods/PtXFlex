@@ -47,7 +47,13 @@ def need(cond,why):
 
 
 def sha1blob(raw):
-    return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw).hexdigest()
+    # Git stores the published UTF-8 JSON with LF. Windows Git can expose
+    # CRLF in older working-tree files; normalize ONLY text newline bytes,
+    # never scientific numbers or original equipment scope fields.
+    canonical=raw.replace(b"\r\n",b"\n")
+    return hashlib.sha1(
+        b"blob "+str(len(canonical)).encode("ascii")+b"\0"+canonical
+    ).hexdigest()
 
 
 def original():
