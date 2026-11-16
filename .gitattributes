@@ -1,0 +1,3 @@
+
+# F2/L3-E OEM questionnaire must retain canonical LF for cross-repo SHA audit.
+data/results/F2L3E_*.json text eol=lf
