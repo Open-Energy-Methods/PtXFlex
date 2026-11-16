@@ -79,7 +79,8 @@ def check_lp_manifest(path,year,mode,original_price_sha,original_wind_sha,
     max_tpd=float(original_max_h2_tpd)
     need(math.isfinite(max_tpd) and SERVICE_TPD<max_tpd-1e-8,
          "prespecified H2 contract must remain below selected E-max service")
-    need(screen.get("original_selected_E_max_nominal_tonnes_day")==max_tpd,
+    need(abs(float(screen.get("original_selected_E_max_nominal_tonnes_day",float("nan")))-
+                 max_tpd)<1e-9,
          "original E maximal service product drift")
     need(screen.get("prespecified_exogenous_delivery_tonnes_day")==[25.,27.5,30.] and
          screen.get("source_wind_electric_power_multipliers")==[.9,.95,1.],
