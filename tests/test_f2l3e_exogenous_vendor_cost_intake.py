@@ -98,3 +98,43 @@ def test_supplier_intake_remains_json_serializable_but_unqualified():
     assert y==d
     assert y["actual_investment_viability_established"] is False
     assert m.review_private_ledger(y)["manufacturer_PED_or_ATEX_certified_design_admitted"] is False
+
+
+def test_role_separated_maintenance_EOL_and_material_specs_are_not_capex_double_counted():
+    # Synthetic evidence only. Populating a questionnaire never constitutes
+    # authenticated vendor cost or a certified source plant.
+    d=m.make()
+    rows={r["line_id"]:r for r in d["nineteen_required_supplier_and_site_intake_lines"]}
+    maint=rows["inspections_fatigue_cycle_testing"]
+    maint["incremental_annual_maintenance_OPEX_eur"]=15000.
+    maint["signed_quote_file_sha256"]="a"*64
+    eol=rows["decommission_and_EOL"]
+    eol["terminal_decommission_liability_eur"]=75000.
+    eol["signed_quote_file_sha256"]="b"*64
+    spec=rows["steel_alloy_material_grade_and_inclusions"]
+    spec["signed_specification_file_sha256"]="c"*64
+    spec["manufacturer_specification_revision"]="fictitious test only"
+    result=m.review_private_ledger(d)
+    assert result["complete_supplier_cost_quote_line_count"]==3
+    assert result["maintenance_cost_and_terminal_decommission_NOT_forced_into_initial_CAPEX"] is True
+    assert maint["manufacturer_total_quoted_incremental_CAPEX_eur"] is None
+    assert eol["manufacturer_total_quoted_incremental_CAPEX_eur"] is None
+    assert spec["manufacturer_total_quoted_incremental_CAPEX_eur"] is None
+    assert result["can_calculate_verified_actual_full_installed_CAPEX"] is False
+    assert result["can_calculate_verified_actual_incremental_annual_OPEX"] is False
+    assert result["manufacturer_document_external_signature_authenticated"] is False
+
+
+def test_unjustified_zero_annual_maintenance_and_terminal_costs_rejected():
+    d=m.make()
+    rows={r["line_id"]:r for r in d["nineteen_required_supplier_and_site_intake_lines"]}
+    maint=rows["inspections_fatigue_cycle_testing"]
+    maint["incremental_annual_maintenance_OPEX_eur"]=0.
+    maint["signed_quote_file_sha256"]="d"*64
+    eol=rows["decommission_and_EOL"]
+    eol["terminal_decommission_liability_eur"]=0.
+    eol["signed_quote_file_sha256"]="e"*64
+    result=m.review_private_ledger(d)
+    assert sum("zero_price_requires_engineer_exclusion" in issue
+               for issue in result["malformed_vendor_cost_evidence_line_reasons"])==2
+    assert result["native_BAFU_original_LCIA_accepted"] is False
