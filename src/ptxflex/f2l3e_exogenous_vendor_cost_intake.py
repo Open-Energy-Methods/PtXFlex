@@ -119,6 +119,8 @@ def make():
             "fabrication_and_scrap_yields":None,
             "replacement_years_and_cost_eur":None,
             "incremental_annual_maintenance_OPEX_eur":None,
+            "terminal_decommission_liability_eur":None,
+            "terminal_EOL_recovery_credit_eur":None,
             "reason_category_is_omitted_with_signed_engineering_source":None,
             "cost_role":COST_ROLES.get(
                 label,"initial_incremental_all_in_site_capex_and_possible_replacement"),
@@ -165,33 +167,65 @@ def review_private_ledger(ledger):
          "supplier quote ledger has missing/misaligned source BOM items")
     missing=[]
     malformed=[]
+    complete=0
     for row,ref in zip(rows,expected):
-        if row.get("cost_role")!=ref["cost_role"]:
-            malformed.append(row["line_id"]+":cost_allocation_treatment_changed")
-        v=row.get("manufacturer_total_quoted_incremental_CAPEX_eur")
-        if v is not None:
-            if type(v) not in (int,float) or not math.isfinite(v) or v<0:
-                malformed.append(row["line_id"]+":invalid_price")
-            elif row.get("signed_quote_file_sha256") is None:
-                malformed.append(row["line_id"]+":quote_file_hash_missing")
+        line=row["line_id"]
+        role=ref["cost_role"]
+        if row.get("cost_role")!=role:
+            malformed.append(line+":cost_allocation_treatment_changed")
+        # A material specification can already be IN the vessel quote.
+        # Inspections are annual OPEX, EOL is a terminal liability; they
+        # MUST NOT be forced to quote another upfront CAPEX line.
+        if role=="design_material_specification_not_separate_capex_without_justification":
+            fields=("signed_specification_file_sha256","manufacturer_specification_revision")
+            evidence_ready=all(row.get(f) for f in fields)
+        elif role=="recurring_opex_and_planned_replacement_duty":
+            fields=("incremental_annual_maintenance_OPEX_eur","signed_quote_file_sha256")
+            evidence_ready=all(row.get(f) is not None for f in fields)
+        elif role=="terminal_decommission_and_end_of_life":
+            fields=("terminal_decommission_liability_eur","signed_quote_file_sha256")
+            evidence_ready=all(row.get(f) is not None for f in fields)
         else:
-            missing.append(row["line_id"])
+            fields=("manufacturer_total_quoted_incremental_CAPEX_eur","signed_quote_file_sha256")
+            evidence_ready=all(row.get(f) is not None for f in fields)
+        if not evidence_ready:
+            missing.append(line)
+        else:
+            complete+=1
+        for key in ("manufacturer_total_quoted_incremental_CAPEX_eur",
+                    "incremental_annual_maintenance_OPEX_eur",
+                    "terminal_decommission_liability_eur",
+                    "terminal_EOL_recovery_credit_eur"):
+            val=row.get(key)
+            if val is not None and (
+                type(val) not in (int,float) or not math.isfinite(val) or val<0
+            ):
+                malformed.append(line+":invalid_nonnegative_"+key)
+        quote_used=any(row.get(k) is not None for k in (
+            "manufacturer_total_quoted_incremental_CAPEX_eur",
+            "incremental_annual_maintenance_OPEX_eur",
+            "terminal_decommission_liability_eur",
+        ))
+        if quote_used and not row.get("signed_quote_file_sha256"):
+            malformed.append(line+":quote_file_hash_missing")
+        for key in ("manufacturer_total_quoted_incremental_CAPEX_eur",
+                    "incremental_annual_maintenance_OPEX_eur",
+                    "terminal_decommission_liability_eur"):
+            if row.get(key)==0 and not row.get(
+                "reason_category_is_omitted_with_signed_engineering_source"):
+                malformed.append(line+":zero_price_requires_engineer_exclusion")
         if row.get("manufacturer_actual_virgin_material_input_kg") is not None and (
             row.get("manufacturer_individual_component_masses_kg") is None or
             row.get("signed_specification_file_sha256") is None
         ):
-            malformed.append(row["line_id"]+":manufacturing_mass_requires_signed_specification")
-        if row.get("manufacturer_total_quoted_incremental_CAPEX_eur")==0 and not (
-            row.get("reason_category_is_omitted_with_signed_engineering_source")
-            or row.get("cost_role")=="design_material_specification_not_separate_capex_without_justification"
-        ):
-            malformed.append(row["line_id"]+":zero_price_requires_engineer_exclusion")
+            malformed.append(line+":manufacturing_mass_requires_signed_specification")
     return {
         "schema_version":"ptxflex.f2l3e_H30_vendor_ledger_COMPLETENESS_only.v1",
         "source_F2_original_Git_blob_SHA1":SOURCE_GIT_BLOB,
-        "complete_supplier_cost_quote_line_count":19-len(missing),
+        "complete_supplier_cost_quote_line_count":complete,
         "unquoted_or_unpriced_line_ids":missing,
         "malformed_vendor_cost_evidence_line_reasons":malformed,
+        "maintenance_cost_and_terminal_decommission_NOT_forced_into_initial_CAPEX":True,
         "can_calculate_verified_actual_full_installed_CAPEX":False,
         "can_calculate_verified_actual_incremental_annual_OPEX":False,
         "manufacturer_document_external_signature_authenticated":False,
