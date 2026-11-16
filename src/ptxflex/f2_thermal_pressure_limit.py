@@ -50,9 +50,9 @@ def solve_maximum_heel_pressure(*, target_usable_kg: float,
             hot_temperature_k=hot_temperature_k).conservative_usable_kg
     low = minimum_search_pressure_bar_absolute
     at_low = usable(low)
-    if target_usable_kg > at_low + 1e-10 * at_low:
+    if target_usable_kg > at_low:
         raise ThermalCapacityError("target infeasible at minimum allowed heel pressure")
-    # EOS density is increasing with pressure in the specified single-phase gas
+    # Exact feasibility is required: a relative allowance here could return a\n    # pressure with less H2 than the requested service, especially at the\n    # minimum heel boundary. Solver pressure tolerance is separate.\n    # EOS density is increasing with pressure in the specified single-phase gas
     # domain. A monotonicity check rejects an unexpected EOS region.
     high = maximum_pressure_bar_absolute
     for _ in range(100):
