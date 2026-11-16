@@ -10,6 +10,7 @@ from collections.abc import Mapping
 
 from .f2l1_supplier_admission import audit_supplier_record
 from .f2l1_evidence_authentication import audit_evidence_manifest
+from .f2l1_role_segregation import audit_role_segregation
 
 REQUIRED_ROLES = frozenset({
     "manufacturer_document", "pressure_conformity",
@@ -26,6 +27,7 @@ def audit_f2l1_cross_evidence(supplier: Mapping, manifest: dict, private_root: P
     """
     supplier_result = audit_supplier_record(supplier)
     integrity = audit_evidence_manifest(manifest, private_root)
+    segregation = audit_role_segregation(manifest)
     records = manifest["records"]
     roles = [r["role"] for r in records]
     missing_roles = sorted(REQUIRED_ROLES - set(roles))
@@ -41,6 +43,8 @@ def audit_f2l1_cross_evidence(supplier: Mapping, manifest: dict, private_root: P
         reasons.append("supplier_metadata_not_review_ready")
     if not integrity["all_files_hash_verified"]:
         reasons.append("evidence_bytes_not_verified")
+    if not segregation["role_segregation_complete"]:
+        reasons.extend(segregation["rejection_reasons"])
     if missing_roles:
         reasons.append("missing_evidence_roles")
     if duplicate_roles:
@@ -51,6 +55,7 @@ def audit_f2l1_cross_evidence(supplier: Mapping, manifest: dict, private_root: P
         "schema_version": "oem.ptx.f2l1.cross_evidence.v1",
         "metadata_complete": supplier_result["review_ready"],
         "byte_integrity_complete": integrity["all_files_hash_verified"],
+        "role_segregation": segregation,
         "missing_roles": missing_roles,
         "duplicate_roles": duplicate_roles,
         "binding_mismatches": mismatched,
