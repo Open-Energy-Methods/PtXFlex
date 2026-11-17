@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
+import stat
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -44,14 +46,32 @@ def verify_local_supplier_receipts(records: Mapping, local_files: Mapping) -> di
             continue
         try:
             source = Path(path)
-            if not source.is_file() or source.is_symlink():
-                raise ValueError("not a regular nonsymlink file")
-            h = hashlib.sha256()
-            nbytes = 0
-            with source.open("rb") as handle:
+            # Open first, then validate the descriptor actually being hashed.
+            # A pre-open is_file()/is_symlink() check has a substitution race.
+            flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0)
+            if hasattr(os, "O_NOFOLLOW"):
+                flags |= os.O_NOFOLLOW
+            with os.fdopen(os.open(source, flags), "rb") as handle:
+                info = os.fstat(handle.fileno())
+                if not stat.S_ISREG(info.st_mode):
+                    raise ValueError("not a regular original document")
+                # On platforms without O_NOFOLLOW, reject symlinks even if
+                # their target is regular; also detect path substitution.
+                path_info = source.lstat()
+                if stat.S_ISLNK(path_info.st_mode) or (
+                    path_info.st_dev, path_info.st_ino
+                ) != (info.st_dev, info.st_ino):
+                    raise ValueError("symlink or path substitution")
+                h = hashlib.sha256()
+                nbytes = 0
                 for block in iter(lambda: handle.read(1024 * 1024), b""):
                     nbytes += len(block)
                     h.update(block)
+                final_info = os.fstat(handle.fileno())
+                if (final_info.st_size, final_info.st_mtime_ns) != (
+                    info.st_size, info.st_mtime_ns
+                ):
+                    raise ValueError("source changed while hashing")
             if nbytes == 0 or not hmac.compare_digest(h.hexdigest(), expected):
                 issues.append(f"{receipt}: empty file or SHA-256 mismatch")
         except (OSError, ValueError):
