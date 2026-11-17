@@ -1,20 +1,34 @@
 """Independent documentary provenance screen; not vessel certification or LCA."""
 import re
+import ipaddress
+from collections.abc import Mapping
 from datetime import date
 from urllib.parse import urlsplit
 
 def check_supplier_provenance(row):
     """Fail closed: documentary identifiers are necessary, never sufficient."""
     errors = []
-    if not isinstance(row, dict):
+    if not isinstance(row, Mapping):
         return ["supplier evidence must be a mapping"]
     url = row.get("supplier_source_url")
     try:
         p = urlsplit(url) if isinstance(url, str) else None
         if not p or p.scheme != "https" or not p.hostname or p.username or p.password:
             raise ValueError("invalid HTTPS supplier URL")
-        if p.hostname.lower() in ("example.com", "example.org", "example.net", "localhost"):
-            raise ValueError("placeholder supplier URL")
+        host = p.hostname.rstrip(".").lower()
+        if (host in ("example.com", "example.org", "example.net", "localhost")
+                or host.endswith((".example", ".test", ".invalid", ".localhost", ".local"))
+                or any(host.endswith("." + x) for x in ("example.com", "example.org", "example.net"))
+                or "." not in host):
+            raise ValueError("placeholder or local supplier URL")
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            pass
+        else:
+            raise ValueError("IP-literal supplier URL is not admitted")
+        if p.fragment or any(ch.isspace() for ch in url):
+            raise ValueError("ambiguous supplier URL")
     except ValueError:
         errors.append("invalid or placeholder supplier URL")
     digest = row.get("supplier_document_sha256")
