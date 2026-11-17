@@ -161,8 +161,8 @@ def review_candidate_metadata(candidate):
         if (row.get("actual_qualified_installed_quantity") is not None and
             not valid_digest(row.get("supplier_original_signed_document_sha256"))):
             invalid.append(row["line_id"]+":physical_quantity_without_signed_source")
-        if row.get("BAFU_manufacturing_materials_specified") is True and
-           row.get("actual_site_component_equipment_mass_kg") is None:
+        if (row.get("BAFU_manufacturing_materials_specified") is True and
+            row.get("actual_site_component_equipment_mass_kg") is None):
             invalid.append(row["line_id"]+":native_lci_claim_without_source_material_mass")
     return {
         "schema_version":"ptxflex.l3f_documentary_structure_review_NOT_PED_approval.v1",
