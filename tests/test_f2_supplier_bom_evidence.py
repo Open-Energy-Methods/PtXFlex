@@ -26,7 +26,8 @@ class SupplierEvidenceGateTests(unittest.TestCase):
                    independent_review=True)
         r = audit_supplier_bom({k: dict(row) for k in REQUIRED_CATEGORIES},
                                site_id="site", design_basis_id="basis")
-        self.assertTrue(r["passed"])
+        self.assertFalse(r["passed"])
+        self.assertTrue(any("SHA-256" in f for f in r["findings"]))
         self.assertIn("documentary", r["claim_scope"])
 
     def test_nan_and_zero_and_boolean_rejected(self):
