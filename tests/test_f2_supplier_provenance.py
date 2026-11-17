@@ -12,7 +12,7 @@ class SupplierProvenanceTests(unittest.TestCase):
         self.assertTrue(any("SHA-256" in x for x in issues))
         self.assertTrue(any("reviewer" in x for x in issues))
     def test_valid_structure_is_not_certification(self):
-        row = dict(supplier_source_url="https://supplier.example/spec",
+        row = dict(supplier_source_url="https://manufacturer.org/spec",
                    supplier_document_sha256="a"*64,
                    supplier_document_receipt_id="SYNTHETIC",
                    independent_reviewer_id="SYNTHETIC",
@@ -22,7 +22,7 @@ class SupplierProvenanceTests(unittest.TestCase):
         self.assertEqual(check_supplier_provenance(row), [])
         self.assertEqual(audit_provenance_for_all({"vessel":row}, {"vessel"}), {})
     def test_future_date_and_invalid_hash(self):
-        row = dict(supplier_source_url="https://supplier.example/spec",
+        row = dict(supplier_source_url="https://manufacturer.org/spec",
                    supplier_document_sha256="0"*63,
                    supplier_document_receipt_id="synthetic",
                    independent_reviewer_id="synthetic",
@@ -44,7 +44,7 @@ class SupplierProvenanceTests(unittest.TestCase):
                     source_date="2026-11-16",
                     independent_review_date="2026-11-16",
                     independent_review=True)
-        for url in ("https://supplier.example/spec", "https://example.org.evil.test/doc",
+        for url in ("https://manufacturer.org/spec", "https://example.org.evil.test/doc",
                     "https://localhost/doc", "https://vendor.local/spec",
                     "https://127.0.0.1/spec", "https://192.168.1.2/doc",
                     "https://supplier.invalid/doc", "https://supplier.test/doc",
