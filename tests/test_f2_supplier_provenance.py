@@ -44,7 +44,7 @@ class SupplierProvenanceTests(unittest.TestCase):
                     source_date="2026-11-16",
                     independent_review_date="2026-11-16",
                     independent_review=True)
-        for url in ("https://manufacturer.org/spec", "https://example.org.evil.test/doc",
+        for url in ("https://supplier.example/spec", "https://example.org.evil.test/doc",
                     "https://localhost/doc", "https://vendor.local/spec",
                     "https://127.0.0.1/spec", "https://192.168.1.2/doc",
                     "https://supplier.invalid/doc", "https://supplier.test/doc",
