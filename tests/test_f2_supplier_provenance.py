@@ -66,5 +66,20 @@ class SupplierProvenanceTests(unittest.TestCase):
                    independent_review=True)
         self.assertEqual(check_supplier_provenance(MappingProxyType(row)), [])
 
+    def test_review_chronology_fail_closed(self):
+        base = dict(supplier_source_url="https://manufacturer.org/specification.pdf",
+                    supplier_document_sha256="a"*64,
+                    supplier_document_receipt_id="SYNTHETIC",
+                    independent_reviewer_id="SYNTHETIC",
+                    source_date="2026-11-16",
+                    independent_review_date="2026-11-15",
+                    independent_review=True)
+        issues = check_supplier_provenance(base)
+        self.assertTrue(any("predates source" in issue for issue in issues))
+        self.assertEqual(check_supplier_provenance(dict(base, independent_review_date="2026-11-16")), [])
+        self.assertEqual(check_supplier_provenance(dict(base, independent_review_date="2026-11-17")), [])
+        self.assertTrue(any("future" in issue for issue in
+                            check_supplier_provenance(dict(base, independent_review_date="2099-01-01"))))
+
 if __name__ == "__main__":
     unittest.main()
