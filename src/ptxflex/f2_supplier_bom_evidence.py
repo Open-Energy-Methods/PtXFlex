@@ -60,6 +60,21 @@ def audit_supplier_bom(records: Mapping[str, Mapping], *, site_id: str,
             findings.append(f"{name}: native compatible manufacturing inventory unverified")
         if row.get("independent_review") is not True:
             findings.append(f"{name}: independent review missing")
+    # A receipt must identify one immutable document digest across the BOM.
+    receipts = {}
+    for name in sorted(REQUIRED_CATEGORIES):
+        row = records.get(name)
+        if not isinstance(row, Mapping):
+            continue
+        receipt = row.get("supplier_document_receipt_id")
+        digest = row.get("supplier_document_sha256")
+        if not isinstance(receipt, str) or not receipt.strip():
+            continue
+        if not isinstance(digest, str) or len(digest) != 64:
+            continue
+        prior = receipts.setdefault(receipt.strip(), (digest, name))
+        if prior[0] != digest:
+            findings.append(f"{name}: document receipt conflicts with {prior[1]} SHA-256")
     extra = set(records) - REQUIRED_CATEGORIES
     if extra:
         findings.append("unrecognized categories: " + ", ".join(sorted(extra)))
