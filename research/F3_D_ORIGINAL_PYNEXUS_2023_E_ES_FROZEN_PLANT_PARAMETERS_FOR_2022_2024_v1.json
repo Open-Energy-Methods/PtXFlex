@@ -1,0 +1,43 @@
+{
+  "schema_version": "oem.ptx.f3d_2023_frozen_source_parameters_for_external_calendar.v1",
+  "source": {
+    "E_original_zip_sha256": "069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051",
+    "E_plus_S_original_zip_sha256": "cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9",
+    "original_source": "PyNEXUS exact source ZIP E/config.yaml, E+S/config.yaml and corresponding record.json",
+    "is_original_2023_model_configuration_applied_without_new_year_plant_calibration": true
+  },
+  "original_h2_demand_kg_per_day": 50000,
+  "capacity_modes": [
+    "max_inventory",
+    "usable_service"
+  ],
+  "model_common": {
+    "initial_kg": 10000,
+    "terminal_kg": 10000,
+    "charge_max_kg_h": 2200,
+    "discharge_max_kg_h": 2200,
+    "loss_fraction_per_hour": 0.0001,
+    "rated_mw": 125,
+    "min_load_fraction": 0.1,
+    "max_load_fraction": 1,
+    "ramp_mw_h": 50,
+    "grid_max_mw": 50,
+    "h2_coefficient_kg_mwh": 21.086108610861086,
+    "delivery_limit_kg_h": 7200,
+    "source_bafu_PEM_pressure_bar": 30,
+    "source_pipeline_min_delivery_pressure_bar": 20
+  },
+  "model_E": {
+    "capacity_kg": 20000
+  },
+  "model_E_plus_S": {
+    "capacity_kg": 40000
+  },
+  "science_claims": {
+    "source_parameters_independently_read_from_pinned_archives": true,
+    "source_plant_validation_per_other_weather_year": false,
+    "full_uninterrupted_original_50tonne_per_day_service_assumed_feasible": false,
+    "installed_storage_cost_or_native_BAFU_complete": false,
+    "new_year_tariff_inflation_reconciliation": false
+  }
+}

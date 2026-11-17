@@ -1,0 +1,49 @@
+{
+  "programme": "OEM-PTX-2026-01",
+  "date_utc": "2026-11-14",
+  "scope": "F3-D provider-native ENTSO-E price acquisition evidence; not a paired-year scenario acceptance",
+  "workflow_run": "https://github.com/Open-Energy-Methods/PtXFlex/actions/runs/43617006319",
+  "attempt": 2,
+  "provider": "ENTSO-E Transparency Platform A44 NL",
+  "years": [
+    {
+      "year": 2022,
+      "hours": 8760,
+      "price_float64_le_sha256": "1a5490fd607d6c786878ca56b5d82ce8568f62b5277bc201206f1e6761b04f28",
+      "normalized_csv_sha256": "452ef0c1e7ef70ab6d243461a0ff300edd7026827a44dd24e47d23025197381c",
+      "job_id": 132545576824,
+      "artifact_id": 14127196149,
+      "original_2023_reference_match": null
+    },
+    {
+      "year": 2023,
+      "hours": 8760,
+      "price_float64_le_sha256": "e67f59598079303df0c51a553904d2352a939ed7439af73ccbfb3daab9d667b6",
+      "normalized_csv_sha256": "1eb3e7a8bfb488b7e375928f8f70e40a6fe82eb58600313371339dab78b96b47",
+      "job_id": 132545576793,
+      "artifact_id": 14127121330,
+      "original_2023_reference_match": true
+    },
+    {
+      "year": 2024,
+      "hours": 8784,
+      "price_float64_le_sha256": "834449561032a1c81f76950fd49b1b0276f6cd27b4a0e07e9188a09144574fce",
+      "normalized_csv_sha256": "2831e3b39372412f161116a945db2ebaa1a9c1fb2c6133835859e2b92d3769ab",
+      "job_id": 132545576766,
+      "artifact_id": 14126442408,
+      "original_2023_reference_match": null
+    }
+  ],
+  "observed": "Three ENTSO-E native jobs completed successfully, full UTC chronology true; 2023 float64 hash matched registered original reference according to provider job log",
+  "unverified": [
+    "Independent recalculation of downloaded raw XML",
+    "ERA5 2022/2023/2024 completion and 2023 wind-source match",
+    "Permanent lawful private archive and independent second physical backup",
+    "Independent scientific review",
+    "2022/2024 paired price/wind source acceptance",
+    "2024 8784h model support",
+    "F3 complete same-hour H2 supply gate"
+  ],
+  "gate_result": "NOT_PASSED",
+  "redistribution": "No provider raw data in this ledger; CI artifacts are temporary private material and must not be republished."
+}

@@ -1,0 +1,56 @@
+name: F3-D private ERA5 isolated monthly recovery (manual)
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 'Observed calendar year'
+        required: true
+        type: choice
+        options: ['2023', '2022', '2024']
+      month:
+        description: 'Single month to retrieve'
+        required: true
+        type: choice
+        options: ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']
+permissions:
+  contents: read
+concurrency:
+  group: era5-private-month-${{ inputs.year }}-${{ inputs.month }}
+  cancel-in-progress: false
+jobs:
+  offline-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_f3d_era5_monthly_private.py
+  private-month:
+    needs: offline-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    env:
+      ERA5_API_KEY: ${{ secrets.ERA5_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]' 'cdsapi>=0.7.7' 'pandas>=2.0' 'xarray>=2024.0' 'netCDF4>=1.6'
+      - name: Retrieve one private month; never claim annual source admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m ptxflex.f3d_era5_monthly_private --year "${{ inputs.year }}" --month "${{ inputs.month }}" --output "${RUNNER_TEMP}/era5-private-month"
+      - name: Temporary private original and SHA provenance; custodian must export lawfully
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-ERA5-${{ inputs.year }}-${{ inputs.month }}-NOT-ANNUAL-NOT-RELEASABLE
+          path: ${{ runner.temp }}/era5-private-month/
+          if-no-files-found: warn
+          retention-days: 7

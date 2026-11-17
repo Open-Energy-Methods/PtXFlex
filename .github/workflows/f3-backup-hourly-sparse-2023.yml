@@ -1,0 +1,88 @@
+name: F3 — preserve actual 8760h original-source H2 shortfall timing (sparse)
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3_backup_sparse_hourly.py'
+      - 'tests/test_f3_backup_sparse_hourly.py'
+      - '.github/workflows/f3-backup-hourly-sparse-2023.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source_2023_hourly_H2_demand:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: max_inventory
+            artifact_id: 14084348674
+            digest: 6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8
+            summary_sha: c65fda894ef4b30e09339ad88a3972625af78c17802fd0cb9a2fc25d3205882f
+          - mode: usable_service
+            artifact_id: 14084937031
+            digest: 18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd
+            summary_sha: d893c6388f14d276b2ef5d4bff4b6c8057dd252067f307f83b9baafcfa1e5308
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MODE: ${{ matrix.mode }}
+      ART_ID: ${{ matrix.artifact_id }}
+      ARCHIVE_SHA: ${{ matrix.digest }}
+      SUMMARY_SHA: ${{ matrix.summary_sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Synthetic mathematical test only; real source execution follows
+        run: python -m pytest -q tests/test_f3_backup_sparse_hourly.py
+      - name: Verify published source-derived summary and archived source 2023 Stage A ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/f3_source_2023
+          p="data/results/F3_2023_original_E_source_hypothetical_backup_${MODE}.json"
+          echo "$SUMMARY_SHA  $p" | sha256sum --check
+          curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 20 --max-time 180 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/Open-Energy-Methods/PtXFlex/actions/artifacts/$ART_ID/zip" \
+            -o /tmp/f3_source_2023/original_stageA_derived.zip
+          echo "$ARCHIVE_SHA  /tmp/f3_source_2023/original_stageA_derived.zip" | sha256sum --check
+          unzip -q /tmp/f3_source_2023/original_stageA_derived.zip -d /tmp/f3_source_2023
+      - name: Source-check all 8760 hourly indices and emit sparse modelled shortfall only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ptxflex.f3_backup_sparse_hourly \
+            --hourly "/tmp/f3_source_2023/${MODE}_E_hourly_additional_shortfall.json" \
+            --summary "data/results/F3_2023_original_E_source_hypothetical_backup_${MODE}.json" \
+            --mode "$MODE" --artifact-zip-sha256 "$ARCHIVE_SHA" \
+            --output "outputs/F3_2023_original_E_sparse_H2_backup_need_${MODE}.json"
+          python - <<'PY'
+          import os, pathlib,hashlib,base64,json
+          p=pathlib.Path("outputs")/("F3_2023_original_E_sparse_H2_backup_need_"+os.environ["MODE"]+".json")
+          raw=p.read_bytes();d=json.loads(raw)
+          assert d["schema_version"]=="ptxflex.f3_2023_sparse_modelled_backup_hourly_need.v1"
+          assert d["source_8760_hourly_count"]==8760
+          assert d["source_stageA_artifact_zip_sha256"]==os.environ["ARCHIVE_SHA"]
+          assert d["modelled_need_not_actual_hydrogen_supplier_delivery"]
+          assert not d["actual_supplier_capacity_and_quality_pressure_checked"]
+          assert not d["full_LCA_TEA_qualified"]
+          assert len(d["positive_H2_topup_needed_kg_by_0_based_source_hour"])==d["positive_hours"]
+          print("F3_H2_SPARSE_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F3_H2_SPARSE_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: all 8760 source hours checked, modelled shortage only, no raw original provider data copied")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F3-2023-source-H2-only-8760h-sparse-${{ matrix.mode }}-NOT-physical-supplier
+          path: outputs/
+          if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,126 @@
+name: F3-C — source 2023 physical E versus E+S equal-hour H2 service
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3_pressure_matched_service.py'
+      - 'tests/test_f3_pressure_matched_service.py'
+      - '.github/workflows/f3-pressure-matched-service-2023.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  source_2023_constructive_common_service:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: max_inventory
+            case: E
+            stageA_artifact_id: 14084348674
+            stageA_zip_sha256: 6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8
+          - mode: max_inventory
+            case: E_plus_S
+            stageA_artifact_id: 14084348674
+            stageA_zip_sha256: 6731bdaeeaa01a531f577150815dcf6638c15d21bc0ccee5e9ac0fa748ffe3c8
+          - mode: usable_service
+            case: E
+            stageA_artifact_id: 14084937031
+            stageA_zip_sha256: 18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd
+          - mode: usable_service
+            case: E_plus_S
+            stageA_artifact_id: 14084937031
+            stageA_zip_sha256: 18dec140df7cab63dd9cae8836e3f23fd2dcfb0370acd48db0e36e6af81813cd
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MODE: ${{ matrix.mode }}
+      CASE: ${{ matrix.case }}
+      STAGEA_ID: ${{ matrix.stageA_artifact_id }}
+      STAGEA_SHA: ${{ matrix.stageA_zip_sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev,original-sources,physics]'
+      - name: Unit tests original source byte/clock trace and SciPy pressure screened maths
+        run: |
+          python -m pytest -q tests/test_f3_pressure_matched_service.py tests/test_f3_matched_ideal_benchmark.py tests/test_f3_pressure_storage_duty.py
+      - name: Download 3 immutable original-source-provenance artifacts and SHA-check derivative archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/f3c_sources /tmp/f3c_stageA outputs
+          for item in "12612294862 E.zip abhijith-sivaprasadan/PyNEXUS" "12613045475 ES.zip abhijith-sivaprasadan/PyNEXUS" "$STAGEA_ID StageA.zip Open-Energy-Methods/PtXFlex"; do
+            set -- $item
+            curl --fail --location --retry 3 --retry-all-errors --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$3/actions/artifacts/$1/zip" \
+              -o "/tmp/f3c_sources/$2"
+          done
+          echo "$STAGEA_SHA  /tmp/f3c_sources/StageA.zip" | sha256sum --check
+          unzip -q "/tmp/f3c_sources/StageA.zip" -d /tmp/f3c_stageA
+          test -s "/tmp/f3c_stageA/${MODE}_E_hourly_additional_shortfall.json"
+          python - <<'PY'
+          from ptxflex.f3_matched_ideal_benchmark import load_matched_pilot
+          a,b,target,pE,pES=load_matched_pilot("/tmp/f3c_sources/E.zip","/tmp/f3c_sources/ES.zip")
+          assert len(target)==8760 and a["registered_sha"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert b["registered_sha"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert a["wind"].shape==(8760,) and a["price"].shape==(8760,)
+          print("Original E and ES archive, hourly target, 2023 wind and observed NL A44 verified.")
+          PY
+      - name: Optimize the original E or E+S pressure-screen source model to precisely same feasible E 2023 hours
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ptxflex.f3_pressure_matched_service \
+            --E /tmp/f3c_sources/E.zip \
+            --ES /tmp/f3c_sources/ES.zip \
+            --hourly-stageA "/tmp/f3c_stageA/${MODE}_E_hourly_additional_shortfall.json" \
+            --artifact-zip-sha256 "$STAGEA_SHA" \
+            --mode "$MODE" --case "$CASE" --time-limit 720 \
+            --output "outputs/F3_C_2023_source_pressure_matched_${MODE}_${CASE}.json"
+      - name: Independent research release gate and emit source-hash result for cross-repo archival
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os,base64,hashlib,json,math,pathlib
+          mode=os.environ["MODE"];case=os.environ["CASE"]
+          p=pathlib.Path("outputs")/f"F3_C_2023_source_pressure_matched_{mode}_{case}.json"
+          raw=p.read_bytes();d=json.loads(raw)
+          assert d["schema_version"]=="ptxflex.f3C_2023_source_pressure_screen_equal_hourly_reduced_service.v1"
+          assert d["source_original_8760_hours"]==8760
+          assert d["original_source_E_archive_sha256"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["original_source_EplusS_archive_sha256"]=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert d["same_original_2023_weather_and_A44_price_every_hour"]
+          assert d["common_hourly_modelled_H2_delivery_strict"]
+          assert d["source_StageA_incumbent_not_proven_globally_minimum"] and not d["global_common_service_selection_optimal"]
+          assert math.isclose(d["source_original_E_hourly_reference_annual_delivery_kg"],16335279.317376737,abs_tol=.002)
+          assert d["derived_common_hourly_reference_service_kg"]<d["source_original_E_hourly_reference_annual_delivery_kg"]
+          assert d["physically_reduced_common_service_shortfall_vs_full_contract_kg"]>1914720
+          assert d["case_modelled_annual_audit"]["hours"]==8760
+          assert max(d["case_modelled_annual_audit"]["independent_max_physical_residuals"].values())<2e-4
+          assert d["gas_reference_EOS_pressure_bounds"]["EOS_hourly_mass_bounds_imply_pressure_limits"]
+          assert not d["2023_plant_or_vendor_validated"]
+          assert d["native_full_BAFU_2026_v1_1_GWP"] is None
+          assert d["source_whole_plant_discounted_EUR_LCOH_or_DCF"] is None
+          assert not d["complete_v1_0_LCA_or_TEA_ready"]
+          assert not d["solver_optimality_certified_to_gap_1e_6"] or d["solver_relative_mip_gap"]<=1e-6
+          print("F3_C_SOURCE_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F3_C_SOURCE_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: source E+ES real 2023 hours, Stage A service derivative, pressure-EOS and independent energy/cost conservation.")
+          print("NO whole-system GWP or LCOH, no actual plant or outside H2 supply.")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: F3-C-2023-physical-equal-hour-${{ matrix.mode }}-${{ matrix.case }}-NOT-full-LCA-TEA
+          path: outputs/
+          if-no-files-found: warn
+          retention-days: 90

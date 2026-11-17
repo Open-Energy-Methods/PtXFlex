@@ -1,0 +1,84 @@
+name: F3 pilot — strict same-hour 2023 E/E+S hydrogen service using frozen sources
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - '.github/workflows/f3-matched-ideal-2023.yml'
+      - 'src/ptxflex/f3_matched_ideal_benchmark.py'
+      - 'src/ptxflex/pressure_storage_duty.py'
+      - 'src/ptxflex/hydrogen_physics.py'
+      - 'src/ptxflex/storage_reference_vessels.py'
+      - 'tests/test_f3_pressure_storage_duty.py'
+      - 'tests/test_f3_matched_ideal_benchmark.py'
+      - 'pyproject.toml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real_original_matched_ideal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned source-parsing and scientific verification dependencies
+        run: python -m pip install -e '.[dev,original-sources,physics]'
+      - name: Independently validate new MILP physical equations on deliberately TEST-ONLY mathematical scenarios
+        run: python -m pytest -v tests/test_f3_matched_ideal_benchmark.py tests/test_f3_pressure_storage_duty.py
+      - name: Download precise ORIGINAL 2023 E and E+S PyNEXUS evidence, never generated synthetic 2023 samples
+        run: |
+          mkdir -p /tmp/frozen_pynexus_2023 outputs/F3_2023_pilot
+          for pair in "12612294862 E.zip" "12613045475 EplusS.zip"; do
+            set -- $pair
+            curl --fail --location --retry 3 --retry-all-errors \
+              --connect-timeout 20 --max-time 180 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/abhijith-sivaprasadan/PyNEXUS/actions/artifacts/$1/zip" \
+              -o "/tmp/frozen_pynexus_2023/$2"
+          done
+      - name: Solve both ORIGINAL 8760h model cases against IDENTICAL source E-delivered H2 service
+        run: |
+          python -m ptxflex.f3_matched_ideal_benchmark \
+            --E /tmp/frozen_pynexus_2023/E.zip \
+            --ES /tmp/frozen_pynexus_2023/EplusS.zip \
+            --time-limit 420 \
+            --output outputs/F3_2023_pilot/ideal_storage_same_hour_E_delivery_both_cases.json
+      - name: Scientifically reject incomplete environmental, pressure or full original-demand claims
+        run: |
+          python - <<'PY'
+          import json,math,pathlib
+          p=pathlib.Path("outputs/F3_2023_pilot/ideal_storage_same_hour_E_delivery_both_cases.json")
+          d=json.loads(p.read_text())
+          assert d['source_original_E_sha256']=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d['source_original_EplusS_sha256']=="cd4101fe62c3f1b8aa2d7508d3651d2fee40d2bafe6d5b87e40d5f4d055070f9"
+          assert d['pilot_operational_service_parity'] is True
+          assert d['source_full_demand_served_in_original'] is False
+          assert d['pressure_resolved_operational_equivalence'] is False
+          assert d['incremental_storage_vessel_BOM_included'] is False
+          assert d['native_full_BAFU_product_LCA_included'] is False
+          a,b=d['E'],d['E_plus_S']
+          assert a['solver_metadata']['solver_optimal'] and b['solver_metadata']['solver_optimal']
+          assert a['solver_metadata']['mip_relative_gap'] <= 1e-6
+          assert b['solver_metadata']['mip_relative_gap'] <= 1e-6
+          assert math.isclose(a['audited_annual']['annual_service_h2_kg'], b['audited_annual']['annual_service_h2_kg'],rel_tol=0,abs_tol=1e-6)
+          for case in ('E','E_plus_S'):
+              r=d[case]
+              assert r['audited_annual']['hours']==8760
+              assert r['audited_annual']['strict_reference_hourly_delivery_profile_is_matched']
+              assert max(r['audited_annual']['independent_max_physical_residuals'].values())<2e-4
+              print(case,'net 2023 original-price wholesale settlement €',r['audited_annual']['total_wholesale_net_grid_eur2023'])
+              print(case,'annual same service H2 kg',r['audited_annual']['annual_service_h2_kg'])
+          print('F3 IDEAL model pilot: matched hourly H2 delivery; PHYSICAL PRESSURE / COMPRESSOR / STORAGE EQUIPMENT not yet included.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F3-2023-original-source-E-ES-ideal-matched-service-NOT-full-plant-LCA
+          path: outputs/F3_2023_pilot/
+          retention-days: 90
+          if-no-files-found: error

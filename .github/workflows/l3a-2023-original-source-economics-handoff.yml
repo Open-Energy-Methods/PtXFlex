@@ -1,0 +1,52 @@
+name: L3-A — PtXFlex 2023 F3C/F2 original-source matched-hour wholesale economics handoff
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/l3a_source_wholesale_economics_handoff.py'
+      - 'tests/test_l3a_source_wholesale_economics_handoff.py'
+      - 'research/L3_A_2023_source_locked_incremental_wholesale_DCF_handoff_v1.json'
+      - '.github/workflows/l3a-2023-original-source-economics-handoff.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original_2023_matched_8760h_source_only_wholesale_cost_differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Test source-verified 2023 original PyNEXUS E/ES exact hour, additional stationary Type I equipment and no vendor CAPEX
+        run: |
+          python -m pytest -q tests/test_l3a_source_wholesale_economics_handoff.py
+      - name: Export explicit 2023 F3C H2 service/2023 EUR wholesale-only source to PtXLens
+        run: |
+          mkdir -p outputs
+          python - <<'PY'
+          import hashlib,base64,json,pathlib
+          from ptxflex.l3a_source_wholesale_economics_handoff import make_handoff
+          d=make_handoff()
+          assert d["schema_version"]=="ptxflex.l3a_2023_8760hour_e_vs_es_real_eur_wholesale_annual_evidence_handoff.v1"
+          assert d["true_plant_vendor_financial_result_or_full_LCOH_permitted"] is False
+          assert set(d["distinct_source_capacity_interpretations"])=={"max_inventory","usable_service"}
+          for mode,q in d["distinct_source_capacity_interpretations"].items():
+              assert q["source_2023_wholesale_difference_is_NOT_2026_future_revenue_forecast"]
+              assert q["vendor_installed_actual_INCREMENTAL_CAPEX_eur"] is None
+              assert q["true_extra_annual_OPEX_and_maintenance_eur"] is None
+              assert q["source_solver_proved_annual_wholesale_saving_bounds_eur"][0]>1e6
+          p=pathlib.Path("outputs/L3_A_PtXFlex_2023_source_hourly_equal_service_wholesale_only_financial_handoff.json")
+          p.write_text(json.dumps(d,sort_keys=True,indent=2,allow_nan=False)+"\n")
+          b=p.read_bytes()
+          print("L3_A_PTXFLEX_HANDOFF_SHA256="+hashlib.sha256(b).hexdigest())
+          print("L3_A_PTXFLEX_HANDOFF_BASE64="+base64.b64encode(b).decode("ascii"))
+          print("PASS: original 2023 E20/ES40 Type I pressure model cost reference and original F3C source SHA present; NO future price forecast, equipment cost or full LCOH.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: L3-A-PtXFlex-2023-original-hour-H2-wholesale-only-no-FULL-DCF
+          path: outputs/
+          retention-days: 90

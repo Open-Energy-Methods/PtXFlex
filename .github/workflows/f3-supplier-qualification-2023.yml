@@ -1,0 +1,58 @@
+name: F3 — independently sourced H2 exit/supplier 8760h qualification controls
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'src/ptxflex/f3_supplier_hourly_qualification.py'
+      - 'tests/test_f3_supplier_hourly_qualification.py'
+      - 'research/f3_h2_exit_and_supplier_source_evidence_v1.json'
+      - '.github/workflows/f3-supplier-qualification-2023.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source_2023_shortage_vs_prospective_2026_H2_contract_interface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install and verify original H2 source plus synthetic boundary tests
+        run: |
+          python -m pip install -e '.[dev]'
+          python -m pytest -q tests/test_f3_supplier_hourly_qualification.py tests/test_f3_registered_sparse_source_hourly.py tests/test_f3_backup_route_screen.py
+      - name: Calculate actual 2023 8760h shortage vs mathematical-only 2026 operator interface controls
+        run: |
+          mkdir -p outputs
+          python -m ptxflex.f3_supplier_hourly_qualification --output outputs/F3_2023_shortage_2026_HNS_exit_and_supplier_boundary_control.json
+          python - <<'PY'
+          import base64,hashlib,json,pathlib
+          p=pathlib.Path("outputs/F3_2023_shortage_2026_HNS_exit_and_supplier_boundary_control.json")
+          raw=p.read_bytes();d=json.loads(raw)
+          assert d["schema_version"]=="ptxflex.f3_2023_H2_shortage_vs_prospective_contractual_supply_thresholds.v1"
+          assert d["model_year"]==2023
+          assert d["network_operator_does_not_guarantee_hydrogen_supply"]
+          assert d["supplier_contract_exit_connection_contract_both_missing"]
+          assert d["all_scenarios_ARE_MATHEMATICAL_synthetic_no_buffer_tests"]
+          assert not d["comparative_E_vs_ES_matched_service_permitted"]
+          assert d["native_BAFU_full_comparative_GWP"] is None
+          assert d["full_EUR2023_system_DCF"] is None
+          for mode,x in d["modes"].items():
+              assert x["actual_connection_total_peak_HHV_kWh_h"] is None
+              pos=x["mathematical_boundary_cases"]["EXACT_PEAK_FLOW_20BARA_PERFECT_UPTIME"]
+              assert pos["unmet_h2_kg"]==0 and not pos["physical_supplier_verified"]
+              for name,record in x["mathematical_boundary_cases"].items():
+                  assert not record["full_lca_tea_eligible"]
+                  if name!="EXACT_PEAK_FLOW_20BARA_PERFECT_UPTIME":
+                      assert record["unmet_h2_kg"]>0
+          print("F3_SUPPLIER_BOUNDARY_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F3_SUPPLIER_BOUNDARY_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: 2023 8760h source loads plus prospective HNS 2026 exit controls; no supplier contract, no physical comparison")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-2023-hourly-2026-HNS-supplier-SYNTHETIC-control-NOT-actual-supplier
+          path: outputs/F3_2023_shortage_2026_HNS_exit_and_supplier_boundary_control.json
+          retention-days: 90

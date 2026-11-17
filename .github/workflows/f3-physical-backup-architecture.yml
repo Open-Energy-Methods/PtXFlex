@@ -1,0 +1,53 @@
+name: F3 — source-backed prospective physical H2 backup architecture
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'research/f3_backup_physical_source_register_v1.json'
+      - 'src/ptxflex/f3_backup_route_screen.py'
+      - 'tests/test_f3_backup_route_screen.py'
+      - '.github/workflows/f3-physical-backup-architecture.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source_verified_candidate_screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Tests reject invented site, pipeline, quality, carbon, equipment and financial claims
+        run: python -m pytest -q tests/test_f3_backup_route_screen.py tests/test_f3_backup_hourly_registered_source.py tests/test_f3_reconciled_registered_source.py
+      - name: Produce original-source-anchored and 2026 source-referenced design basis
+        run: |
+          python -m ptxflex.f3_backup_route_screen --output outputs/F3_2023_2026_prospective_h2_delivery_architecture.json
+          python - <<'PY'
+          import base64,hashlib,json,pathlib
+          p=pathlib.Path("outputs/F3_2023_2026_prospective_h2_delivery_architecture.json")
+          raw=p.read_bytes();x=json.loads(raw)
+          assert x["schema_version"]=="ptxflex.f3_prospective_backup_delivery_design_basis.v1"
+          assert x["reference_weather_and_wholesale_price_year"]==2023
+          assert x["external_network_architecture_source_year"]==2026
+          assert x["prospective_2026_infrastructure_is_not_observed_2023_site_supply"]
+          assert x["published_hynetwork_pressure_is_network_entry_not_customer_exit_guarantee"]
+          assert x["physical_hydrogen_connection_and_supply_contract"] is None
+          assert not x["physically_verified_common_hourly_service"]
+          assert not x["comparative_environmental_or_cost_superiority_eligible"]
+          for mode,rec in x["modes"].items():
+              assert rec["source_stageA_proven_minimum_additional_shortage_lower_bound_kg"]>0
+              assert rec["pathways"]["contracted_dedicated_H2_pipeline"]["customer_guaranteed_min_exit_pressure_bar_absolute"] is None
+              assert rec["pathways"]["gaseous_tube_trailer_delivery"]["actual_deliverable_peak_flow_kg_h"] is None
+              assert not rec["environmental_and_tea_comparison_eligible"]
+          print("F3_PHYSICAL_ARCHITECTURE_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F3_PHYSICAL_ARCHITECTURE_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("SCIENTIFIC STOP: prospective backup candidate only; no 2023 physical pipeline supply or full LCA/TEA.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F3-2023-source-2026-prospective-physical-H2-backup-CANDIDATE-ONLY
+          path: outputs/F3_2023_2026_prospective_h2_delivery_architecture.json
+          retention-days: 90

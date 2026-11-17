@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ptxflex"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Research MILP for renewable hydrogen to methanol"
+dependencies = ["numpy>=1.24", "scipy>=1.11,<2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "jsonschema>=4.21,<5", "PyYAML==6.0.2", "pandas>=2.0,<3", "xarray>=2024.1,<2027", "CoolProp==8.0.0"]
+contracts = ["jsonschema>=4.21,<5"]
+physics = ["CoolProp==8.0.0"]
+original-sources = ["PyYAML==6.0.2"]
+
+[project.scripts]
+ptxflex = "ptxflex.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
