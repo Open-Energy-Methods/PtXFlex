@@ -37,13 +37,21 @@ def check_supplier_provenance(row):
     for field in ("supplier_document_receipt_id", "independent_reviewer_id"):
         if not isinstance(row.get(field), str) or not row[field].strip():
             errors.append("missing " + field)
+    parsed_dates = {}
     for field in ("source_date", "independent_review_date"):
         try:
             value = row[field]
-            if not isinstance(value, str) or date.fromisoformat(value) > date.today():
-                raise ValueError("invalid or future date")
+            if not isinstance(value, str):
+                raise ValueError("invalid date type")
+            parsed = date.fromisoformat(value)
+            if parsed > date.today():
+                raise ValueError("future date")
+            parsed_dates[field] = parsed
         except (KeyError, TypeError, ValueError):
             errors.append("missing, invalid or future " + field)
+    if (len(parsed_dates) == 2 and
+            parsed_dates["independent_review_date"] < parsed_dates["source_date"]):
+        errors.append("independent review predates source document")
     if row.get("independent_review") is not True:
         errors.append("independent review not confirmed")
     return errors
