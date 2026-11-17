@@ -9,6 +9,7 @@ from collections.abc import Mapping
 from datetime import date
 from math import isfinite
 from urllib.parse import urlparse
+from ptxflex.f2_supplier_provenance import check_supplier_provenance
 
 REQUIRED_CATEGORIES = frozenset({
     "pressure_vessels", "vessel_supports", "manifolds", "isolation_valves",
@@ -36,6 +37,7 @@ def audit_supplier_bom(records: Mapping[str, Mapping], *, site_id: str,
             continue
         if row.get("site_id") != site_id or row.get("design_basis_id") != design_basis_id:
             findings.append(f"{name}: incompatible site/design basis")
+        findings.extend(f"{name}: {issue}" for issue in check_supplier_provenance(row))
         source = row.get("supplier_source_url")
         parsed = urlparse(source) if isinstance(source, str) else None
         if not parsed or parsed.scheme != "https" or not parsed.netloc:
