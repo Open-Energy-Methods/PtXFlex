@@ -28,7 +28,12 @@ def audit_supplier_bom(records: Mapping[str, Mapping], *, site_id: str,
     separately gated and never inferred from empty hardware mass.
     """
     findings = []
-    if not site_id.strip() or not design_basis_id.strip():
+    if not isinstance(records, Mapping):
+        return {"gate": "F2_L1_SUPPLIER_EVIDENCE_SCREEN", "passed": False,
+                "findings": ["supplier BOM must be a mapping"],
+                "categories_required": len(REQUIRED_CATEGORIES),
+                "claim_scope": "documentary completeness only; no certification, plant validation or LCIA"}
+    if not isinstance(site_id, str) or not site_id.strip() or not isinstance(design_basis_id, str) or not design_basis_id.strip():
         findings.append("missing named site or design basis")
     for name in sorted(REQUIRED_CATEGORIES):
         row = records.get(name)
@@ -77,7 +82,7 @@ def audit_supplier_bom(records: Mapping[str, Mapping], *, site_id: str,
             findings.append(f"{name}: document receipt conflicts with {prior[1]} SHA-256")
     extra = set(records) - REQUIRED_CATEGORIES
     if extra:
-        findings.append("unrecognized categories: " + ", ".join(sorted(extra)))
+        findings.append("unrecognized categories: " + ", ".join(sorted(map(str, extra))))
     return {"gate": "F2_L1_SUPPLIER_EVIDENCE_SCREEN",
             "passed": not findings, "findings": findings,
             "categories_required": len(REQUIRED_CATEGORIES),
