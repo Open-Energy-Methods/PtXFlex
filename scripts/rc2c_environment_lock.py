@@ -21,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PINS = ROOT / "environment/rc2c-pins.txt"
-PYTHON = (3, 11, 18)
+PYTHON = {"linux": (3, 11, 18), "win32": (3, 11, 9)}
 INDEX = "https://pypi.org/simple"
 
 
@@ -35,8 +35,8 @@ def normalize(name):
 
 
 def host():
-    need(sys.implementation.name == "cpython" and tuple(sys.version_info[:3]) == PYTHON,
-         "CPython 3.11.18 required for this exact qualified profile")
+    need(sys.implementation.name == "cpython" and tuple(sys.version_info[:3]) == PYTHON.get(sys.platform),
+         "platform-specific exact CPython version required (Linux 3.11.18; Windows 3.11.9)")
     need(platform.machine().lower() in {"amd64", "x86_64"} and sys.maxsize > 2**32,
          "x86-64 host required")
     need(sys.platform in {"win32", "linux"}, "Windows/Linux only")
@@ -72,7 +72,7 @@ def inspect_wheels(directory, expected):
         need(p.is_file() and p.suffix == ".whl" and not p.is_symlink(),
              "unexpected non-wheel file")
         with zipfile.ZipFile(p) as z:
-            entries = [n for n in z.namelist() if n.endswith(".dist-info/METADATA")]
+            entries = [n for n in z.namelist() if n.count("/") == 1 and n.endswith(".dist-info/METADATA")]
             need(len(entries) == 1, "wheel has invalid package metadata")
             m = email.message_from_bytes(z.read(entries[0]))
         name, version = normalize(m["Name"]), m["Version"]
@@ -85,7 +85,7 @@ def inspect_wheels(directory, expected):
 
 def lock_text(seen, target):
     lines = [
-        "# RC2-C CPython 3.11.18 " + target + " binary-only lock; generated from actual PyPI wheels.",
+        "# RC2-C CPython 3.11 " + target + " binary-only lock; generated from actual PyPI wheels.",
         "# Review wheel provenance before accepting a new lock. No source distributions.",
     ]
     for name, row in sorted(seen.items()):
