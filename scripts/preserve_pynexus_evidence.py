@@ -128,14 +128,21 @@ def save_from_api(entry,target,token,*,opener=urlopen):
             name.unlink(missing_ok=True)
 
 
-def preserve(destination,token,*,opener=urlopen):
-    if not token or not token.strip():
+def preserve(destination,token="",*,opener=urlopen,adopt_existing_only=False):
+    if not adopt_existing_only and (not token or not token.strip()):
         raise EvidenceEscrowError("set GH_TOKEN with permission to read ORIGINAL upstream Actions artifacts")
     target=legal_destination(destination)
-    target.mkdir(parents=True,exist_ok=True)
+    if adopt_existing_only:
+        if not target.is_dir():
+            raise EvidenceEscrowError("existing private archive directory is missing")
+        # Validate all original ZIPs before writing ANY new local manifest; never fetch.
+        for entry in REGISTER.values():
+            valid_archive(target/entry["filename"],entry["sha256"])
+    else:
+        target.mkdir(parents=True,exist_ok=True)
     results={}
     for key,entry in REGISTER.items():
-        status=save_from_api(entry,target,token,opener=opener)
+        status="existing_verified_offline" if adopt_existing_only else save_from_api(entry,target,token,opener=opener)
         p=target/entry["filename"]
         results[key]={
             "artifact_id":entry["artifact_id"],"original_archive_sha256":entry["sha256"],
@@ -175,7 +182,9 @@ def main(argv=None):
     parser=argparse.ArgumentParser()
     parser.add_argument("--destination",type=Path,required=True,
                        help="PRIVATE folder outside repo (no original data uploaded/committed)")
-    parser.add_argument("--verify-only",action="store_true",help="verify existing original local ZIPs without token/network")
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument("--verify-only",action="store_true",help="verify existing original local ZIPs without token/network")
+    mode.add_argument("--adopt-verified-local",action="store_true",help="validate existing three original ZIPs and create private provenance manifest with no token or network")
     a=parser.parse_args(argv)
     if a.verify_only:
         target=legal_destination(a.destination)
@@ -184,7 +193,7 @@ def main(argv=None):
         print("All three original immutable source ZIPs match registered SHA256 and CRC; kept outside Git.")
         return
     token=os.environ.get("GH_TOKEN","")
-    result=preserve(a.destination,token)
+    result=preserve(a.destination,token,adopt_existing_only=a.adopt_verified_local)
     print(json.dumps({"source_hashes":{k:v["original_archive_sha256"] for k,v in result["original_source_SHA_lock"].items()},
                       "raw_data_location":"PRIVATE user-specified folder outside Git",
                       "original_artifact_expiration":EXPIRES},indent=2))
