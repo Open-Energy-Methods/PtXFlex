@@ -180,3 +180,30 @@ def test_original_data_rejected_from_git_linked_worktree(tmp_path):
     (other / ".git").write_text("gitdir: /synthetic/gitdir")
     with pytest.raises(old.EvidenceEscrowError, match="OUTSIDE every Git working tree"):
         old.legal_destination(other / "private")
+
+
+def test_offline_source_adoption_does_not_require_token_or_network(tmp_path, monkeypatch):
+    root, _, registry = fake_data(tmp_path, monkeypatch)
+    manifest_path = root / "PRIVATE_original_2023_source_provenance.json"
+    manifest_path.unlink()
+    for i, entry in enumerate(registry.values()):
+        entry.update(artifact_id=i, kind="synthetic_test_not_provider_data")
+    monkeypatch.setattr(old, "REGISTER", registry)
+    def no_network(*args, **kwargs):
+        pytest.fail("offline adoption unexpectedly attempted network access")
+    result = old.preserve(root, opener=no_network, adopt_existing_only=True)
+    assert manifest_path.is_file()
+    assert result["copied_to_public_GitHub"] is False
+    assert all(x["verified_private_escrow_status"] == "existing_verified_offline"
+               for x in result["original_source_SHA_lock"].values())
+
+
+def test_offline_adoption_missing_original_refuses_manifest(tmp_path, monkeypatch):
+    root, _, registry = fake_data(tmp_path, monkeypatch)
+    manifest_path = root / "PRIVATE_original_2023_source_provenance.json"
+    manifest_path.unlink()
+    monkeypatch.setattr(old, "REGISTER", registry)
+    (root / registry["E"]["filename"]).unlink()
+    with pytest.raises(old.EvidenceEscrowError, match="archive unavailable"):
+        old.preserve(root, adopt_existing_only=True)
+    assert not manifest_path.exists()
