@@ -1,5 +1,12 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+## 18 November 2026 — RC1 cross-repository science/software release audit (review branch)
+
+[RC1 physical evidence and release handoff](docs/RC1_PTXFLEX_SCIENTIFIC_RELEASE_EVIDENCE_HANDOFF_2026-11-18.md) introduces exact published four-report SHA checks, all-12 original science-gate integrity tests and least-privilege/compilation/dependency CI. The [paired PtXLens RC1 audit](https://github.com/Open-Energy-Methods/PtXLens/blob/feat/rc1-release-audit/docs/RC1_PAIRED_SCIENTIFIC_SOFTWARE_RELEASE_AUDIT_2026-11-18.md) cross-validates the full ten-report research evidence, identical scientific governance documents and release blockers. This is **NOT** vendor station qualification, native BAFU project LCIA, installed project NPV, comprehensive independent security review or an approved scientific v1.0. Main PR #1 still requires conflict resolution and scoped review. RC1 branch awaits final integration approval.
+
+---
+
+
 ## 18 November 2026 — L3-G paired research release physical handoff PREPARED
 
 A [source-and-scope physical evidence handoff](docs/L3G_PAIRED_RESEARCH_RELEASE_PHYSICAL_EVIDENCE_HANDOFF_v1.md) identifies the four immutable L3-F PtXFlex papers and connects them to the [PtXLens L3-G claim and cross-repository release gate](https://github.com/Open-Energy-Methods/PtXLens/blob/feat/l3g-release-qualification/src/ptxlens/l3g_release_qualification.py). The paired audit verifies the original 20t EXTRA MAX inventory versus ~17.785t reference withdrawable capacity, 19 original source equipment categories, 13 engineering documentary domains, and hypothetical reference paper equipment not mistaken for installed, PED-qualified vessels or virgin-steel manufacturing mass. **No site, vendor, investment, native BAFU LCIA or unqualified scientific v1.0 claim is admissible.** This is a review branch, not a published L3-G scientific release.
