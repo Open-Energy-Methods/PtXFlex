@@ -1,0 +1,28 @@
+name: RC2-C reviewed binary wheel lock candidates
+on:
+  push:
+    branches: [feat/rc2c-locked-environment]
+    paths:
+      - 'environment/rc2c-pins.txt'
+      - 'scripts/rc2c_environment_lock.py'
+      - '.github/workflows/rc2c-lock-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidates:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.18'
+          architecture: x64
+      - run: python scripts/rc2c_environment_lock.py generate
