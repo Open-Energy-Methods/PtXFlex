@@ -84,6 +84,11 @@ def legal_destination(path):
     target=Path(path).expanduser().resolve()
     if target==REPO_ROOT or REPO_ROOT in target.parents:
         raise EvidenceEscrowError("original provider source must be stored OUTSIDE this GitHub working tree")
+    for parent in (target, *target.parents):
+        if (parent / ".git").exists() or (parent / ".git").is_symlink():
+            raise EvidenceEscrowError("original provider source must be stored OUTSIDE every Git working tree")
+        if (parent / "HEAD").is_file() and (parent / "objects").is_dir() and (parent / "refs").is_dir():
+            raise EvidenceEscrowError("original provider source must be stored OUTSIDE bare Git repositories")
     if target.exists() and not target.is_dir():
         raise EvidenceEscrowError("destination is not a private directory")
     return target
