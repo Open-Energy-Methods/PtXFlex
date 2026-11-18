@@ -166,13 +166,17 @@ def benchmark(lens_root=None):
     close(conservation_residual_kg(20., 7., 4., 20., 2., 1.), 0.)
     # Actual PtXFlex synthetic model. For the fixed 400 kg service, theoretical
     # energy is stoichiometric H2 / 20 + auxiliary power. Cheapest 5 EUR/MWh
-    # grid interval has enough capacity; next-cheapest option is wind at 25.
+    # grid interval has enough electrolysis capacity, but at most 200 kg of
+    # synthesis can operate in that hour. At least 200 kg requires 0.06 MWh
+    # of non-cheap-hour auxiliaries; wind at 25 EUR/MWh is the next cheapest.
+    # This lower bound is attainable with stored H2 and a second wind-fed hour.
     case = json.loads((ROOT / "examples/illustrative_methanol.json").read_text(encoding="utf-8"))
     energy = 400. * (3. * 2.016 / 32.04 / 20. + .0003)
     cheap_grid_at_cap = (200. - 15. * energy) / (600. - 15.)
     baseline = solve(case)
     limited = solve(case, emissions_cap_kgco2e=200.)
-    target_cost = 5. * energy
+    noncheap_aux = (400. - 200.) * .0003
+    target_cost = 5. * (energy - noncheap_aux) + 25. * noncheap_aux
     cap_cost = 25. * (energy - cheap_grid_at_cap) + 5. * cheap_grid_at_cap
     for r, cost in ((baseline, target_cost), (limited, cap_cost)):
         need(audit_solution(case, r), "PtXFlex original equation audit did not pass")
