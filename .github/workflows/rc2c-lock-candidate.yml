@@ -1,0 +1,36 @@
+name: RC2-C wheel lock candidate
+on:
+  push:
+    branches: ['feat/rc2c-reproducible-environment']
+    paths:
+      - 'requirements/rc2c-seed-py311.txt'
+      - 'scripts/rc2c_generate_wheel_lock.py'
+      - '.github/workflows/rc2c-lock-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - run: python --version
+      - run: python scripts/rc2c_generate_wheel_lock.py --seed requirements/rc2c-seed-py311.txt --output candidate.txt
+      - run: python -m venv rc2c-candidate
+      - name: Validate hash-verified candidate in clean environment
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then py=./rc2c-candidate/Scripts/python.exe; else py=./rc2c-candidate/bin/python; fi
+          "$py" -m pip install --require-hashes --only-binary=:all: -r candidate.txt
+          "$py" -m pip check
