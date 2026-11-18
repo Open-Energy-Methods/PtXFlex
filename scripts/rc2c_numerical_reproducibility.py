@@ -142,13 +142,22 @@ def benchmark(lens_root=None):
     bad = milp(c, integrality=np.ones(2), bounds=Bounds(0.,1.),
                constraints=LinearConstraint(mat, lower, np.inf))
     need(bad.status == 2 and not bad.success, "known infeasible MILP accepted")
-    # Independent numerical reference from already-published 20/200 bar(a), 313 K
-    # original 20,000 kg max inventory pressure swing. Not an independent EOS.
+    # F2 publishes DIFFERENCE of individually rounded reference banks: 802
+    # additional 1.8 m3 positions, not the continuous exact 20,000 kg target.
+    # L3-F independently shows that achieving BOTH thresholds from a standalone
+    # increment requires 803 positions. Keep distinct volume and capacity semantics.
     storage = usable_storage_volume(17784.924849614785, 20., 200., 313.)
-    close(storage.initial_hydrogen_capacity_at_max_pressure_kg, 20000., atol=2e-6)
+    close(storage.required_free_gas_volume_m3, 802. * 1.8, atol=2e-6)
+    close(storage.density_maximum_kg_m3, 13.851573201516661, atol=1e-9)
+    close(storage.usable_density_swing_kg_m3, 12.319842650051804, atol=1e-9)
+    close(storage.initial_hydrogen_capacity_at_max_pressure_kg, 19996.131073709454, atol=2e-6)
     close(storage.initial_hydrogen_capacity_at_max_pressure_kg -
           storage.residual_hydrogen_capacity_at_min_pressure_kg,
           17784.924849614785, atol=2e-6)
+    both = math.ceil(max(20000. / storage.density_maximum_kg_m3,
+                        storage.required_free_gas_volume_m3) / 1.8)
+    need(both == 803 and storage.initial_hydrogen_capacity_at_max_pressure_kg <
+         20000., "standalone gross/working capacity reference conflated")
     comp = compression_work(30., 200., 313., .8, .9, 2)
     close(comp.total_electrical_kwh_per_kg_hydrogen * .9,
           comp.total_shaft_energy_kwh_per_kg_hydrogen, atol=1e-10)
@@ -176,7 +185,9 @@ def benchmark(lens_root=None):
             np.max(np.abs(a @ dense - b)), np.max(np.abs(a @ sparse - b)))),
         "analytic_lp_optimum": float(lp.fun), "enumerated_milp_optimum": float(opt.fun),
         "known_infeasible_milp_status": int(bad.status),
-        "hydrogen_reference_gross_kg": storage.initial_hydrogen_capacity_at_max_pressure_kg,
+        "hydrogen_802_positions_reference_gross_kg": storage.initial_hydrogen_capacity_at_max_pressure_kg,
+        "hydrogen_standalone_gross_target_kg": 20000.,
+        "hydrogen_paper_positions_for_both_thresholds": both,
         "hydrogen_reference_usable_kg": storage.useful_hydrogen_kg,
         "model_compression_kwh_per_kg": comp.total_electrical_kwh_per_kg_hydrogen,
         "synthetic_methanol_cost_eur": baseline["variable_operating_cost_eur"],
