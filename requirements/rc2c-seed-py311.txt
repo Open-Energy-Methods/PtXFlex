@@ -1,0 +1,28 @@
+# Shared RC2-C CPython 3.11 x86_64 research/test environment.
+# Exact versions observed in RC2-A/B Linux CI; explicitly chosen packaging
+# tool pins and Windows colorama are additional environment controls.
+# This is the input to lock generation, NOT a hash lock.
+CoolProp==8.0.0
+PyYAML==6.0.2
+attrs==26.1.0
+iniconfig==2.3.1
+jsonschema==4.26.0
+jsonschema-specifications==2025.9.1
+numpy==2.4.6
+packaging==26.3
+pandas==2.3.3
+pluggy==1.7.0
+pygments==2.21.0
+pytest==9.2.0
+python-dateutil==4.0.0
+pytz==2026.6
+referencing==0.37.0
+rpds-py==2026.9.1
+scipy==1.17.1
+typing-extensions==4.16.0
+tzdata==2026.6
+xarray==2026.9.0
+pip==25.3
+setuptools==80.9.0
+wheel==0.45.1
+colorama==0.4.6; sys_platform == "win32"
