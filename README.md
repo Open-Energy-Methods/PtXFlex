@@ -1,5 +1,12 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+## 18 November 2026 — RC2-A/B source custody and governance reconciliation
+
+[RC2 source custody and recovery protocol](docs/RC2_SOURCE_CUSTODY_AND_SCIENTIFIC_GOVERNANCE_2026-11-18.md) records new independent readback of all three pre-existing private frozen 2023 E/E+S/A44 archives: registered byte lengths, ZIP CRC and SHA256 match. API expiry was also rechecked, first source expiry 24 Dec 2026 19:24:29 UTC. New token-free offline adoption and secondary-only restoration scripts/tests preserve the original archive+manifest outside every Git tree. An independently reviewed permanent separate backup, full source rights and external review remain open. Shared RC2-B receipt reconciles 2 source-admitted 2022/2024 pairs, 4 selected-service year/mode cases and 2 separate H30/W090 cases; all 12 full scientific programme gates remain NOT_PASSED. No raw provider data or private storage locator is published.
+
+---
+
+
 ## 18 November 2026 — RC1 cross-repository science/software release audit (review branch)
 
 [RC1 physical evidence and release handoff](docs/RC1_PTXFLEX_SCIENTIFIC_RELEASE_EVIDENCE_HANDOFF_2026-11-18.md) introduces exact published four-report SHA checks, all-12 original science-gate integrity tests and least-privilege/compilation/dependency CI. The [paired PtXLens RC1 audit](https://github.com/Open-Energy-Methods/PtXLens/blob/feat/rc1-release-audit/docs/RC1_PAIRED_SCIENTIFIC_SOFTWARE_RELEASE_AUDIT_2026-11-18.md) cross-validates the full ten-report research evidence, identical scientific governance documents and release blockers. This is **NOT** vendor station qualification, native BAFU project LCIA, installed project NPV, comprehensive independent security review or an approved scientific v1.0. Main PR #1 still requires conflict resolution and scoped review. RC1 branch awaits final integration approval.
