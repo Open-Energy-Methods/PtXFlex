@@ -16,6 +16,9 @@ on:
       - 'pyproject.toml'
       - '.github/workflows/ci.yml'
   workflow_dispatch:
+permissions:
+  contents: read
+
 concurrency:
   group: core-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -28,6 +31,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -e ".[dev]"
+      - run: python -m pip check
+      - run: python -m compileall -q src tests
       - run: python -m pytest -q
       - run: ptxflex examples/illustrative_methanol.json --output /tmp/baseline.json
       - run: ptxflex examples/illustrative_methanol.json --emissions-cap-kgco2e 200 --output /tmp/capped.json
