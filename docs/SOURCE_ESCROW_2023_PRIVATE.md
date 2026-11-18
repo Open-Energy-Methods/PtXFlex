@@ -1,5 +1,10 @@
 # P0 — preserve the original 2023 PyNEXUS evidence privately, before archive expiration
 
+## RC2-A — 18 November 2026 readback update
+
+All three already-stored private owner copies were freshly retrieved, SHA256 checked against the original registry, and passed ZIP CRC. All three were also live-verified as unexpired with matching API digests. See the [RC2 custody protocol](RC2_SOURCE_CUSTODY_AND_SCIENTIFIC_GOVERNANCE_2026-11-18.md). The historical record below is retained; new primary readback proof does NOT establish a permanent independent backup or legal rights. Adopt the existing original ZIPs locally with `--adopt-verified-local` and run the secondary recovery with `--restore-into` as documented. P0 remains NOT_PASSED.
+
+
 ## Live GitHub retention verification — 14 November 2026
 
 The three original source ZIP artifact records were queried **directly through GitHub Actions' workflow-run artifact listing API** on 14 November 2026. All three currently report **`expired=false`** with these authoritative point-in-time expiry timestamps (UTC):

@@ -105,6 +105,31 @@ def verify_pair(primary,secondary,*,make_secondary=False):
             "filenames_identical_to_original_private_registry":True,
             "raw_content_uploaded_or_returned":False,
         }
+    # The second copy must be independently restorable, including its provenance
+    # manifest. Never overwrite an existing but inconsistent manifest.
+    backup_manifest = s / manifest.name
+    if backup_manifest.is_symlink():
+        raise EvidenceEscrowError("secondary provenance manifest must not be a symlink")
+    if make_secondary and not backup_manifest.exists():
+        temp = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=s, prefix=".private_manifest_", delete=False) as tmp:
+                temp = Path(tmp.name)
+                tmp.write(manifest.read_bytes())
+            # Exclusively create the new backup manifest, never replace a user's copy.
+            with backup_manifest.open("xb") as dest:
+                dest.write(temp.read_bytes())
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
+    manifest_verified = False
+    if backup_manifest.exists():
+        if not backup_manifest.is_file() or backup_manifest.read_bytes() != manifest.read_bytes():
+            raise EvidenceEscrowError("secondary provenance manifest differs from original")
+        if (backup_manifest.stat().st_dev, backup_manifest.stat().st_ino) == (
+                manifest.stat().st_dev, manifest.stat().st_ino):
+            raise EvidenceEscrowError("secondary provenance manifest aliases the primary")
+        manifest_verified = True
     different_filesystem_id=p.stat().st_dev!=s.stat().st_dev
     return {
         "schema_version":"oem.ptx.private_two_copy_restoration_verification.v1",
@@ -113,6 +138,7 @@ def verify_pair(primary,secondary,*,make_secondary=False):
         "registered_source_action_artifacts_expiration_not_live_reverified":EXPIRES,
         "all_three_original_source_archives_sha_and_crc_verified_in_two_directories":True,
         "separate_root_directories_eligible":True,
+        "secondary_independent_provenance_manifest_sha_bytes_verified":manifest_verified,
         "different_filesystem_device_id_verified":different_filesystem_id,
         "same_filesystem_not_independent_backup":not different_filesystem_id,
         "independent_physical_storage_device_verified":False,
@@ -126,6 +152,35 @@ def verify_pair(primary,secondary,*,make_secondary=False):
     }
 
 
+def restore_from_secondary(primary, secondary, restore_into):
+    """Restore only from the secondary in a fresh non-Git directory.
+
+    No network, no original primary archive bytes used to build the restored
+    files. Caller first verifies the independent two-copy pair. A full restore
+    still does not establish different physical devices or legal rights.
+    """
+    p = legal_destination(primary)
+    s = legal_destination(secondary)
+    r = legal_destination(restore_into)
+    if r.exists() or r == p or r == s or p in r.parents or s in r.parents or r in p.parents or r in s.parents:
+        raise EvidenceEscrowError("restoration must target a new, separate non-nested private directory")
+    if not (s / "PRIVATE_original_2023_source_provenance.json").is_file():
+        raise EvidenceEscrowError("secondary lacks independent provenance manifest; use --copy-secondary first")
+    # Use the secondary as the sole source for all restored bytes.
+    result = verify_pair(s, r, make_secondary=True)
+    if not result["secondary_independent_provenance_manifest_sha_bytes_verified"]:
+        raise EvidenceEscrowError("restored manifest not independently verified")
+    return {
+        "all_three_archives_restored_and_verified_from_secondary_only": True,
+        "restored_private_provenance_manifest_verified": True,
+        "no_network_or_original_primary_archive_bytes_used_for_restoration": True,
+        "restoration_location": "PRIVATE_OUTSIDE_GIT_NOT_DISCLOSED",
+        "independent_physical_storage_device_verified": False,
+        "licence_and_external_review_verified": False,
+        "full_P0_release_gate_passed": False,
+    }
+
+
 def main(argv=None):
     ap=argparse.ArgumentParser()
     ap.add_argument("--primary",required=True,help="existing PRIVATE escrow directory outside git")
@@ -134,10 +189,14 @@ def main(argv=None):
                     help="copy original source files to private secondary if absent, validate SHA before commit")
     ap.add_argument("--strict-different-device",action="store_true",
                     help="fail if both directories are on the same storage device")
+    ap.add_argument("--restore-into", help="restore solely from verified secondary into this NEW private directory")
     args=ap.parse_args(argv)
     report=verify_pair(args.primary,args.secondary,make_secondary=args.copy_secondary)
     if args.strict_different_device and not report["different_filesystem_device_id_verified"]:
         raise EvidenceEscrowError("two verified private folders have the SAME filesystem device identifier")
+    if args.restore_into:
+        report["secondary_only_restoration_test"] = restore_from_secondary(
+            args.primary, args.secondary, args.restore_into)
     # Print ONLY provenance and boolean checks. No private paths, raw files or API token.
     print(json.dumps(report,sort_keys=True,indent=2,allow_nan=False))
 

@@ -124,3 +124,86 @@ def test_dangling_secondary_symlink_not_overwritten(tmp_path, monkeypatch):
         rec.verify_pair(root, other, make_secondary=True)
     assert alias.is_symlink()
     assert not target.exists()
+
+
+def test_secondary_manifest_and_fresh_restore_from_backup_only(tmp_path, monkeypatch):
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    result = rec.verify_pair(root, other, make_secondary=True)
+    assert result["secondary_independent_provenance_manifest_sha_bytes_verified"]
+    # Remove the synthetic primary to prove the restoration does not read it.
+    shutil.rmtree(root)
+    destination = tmp_path / "fresh_restoration"
+    receipt = rec.restore_from_secondary(root, other, destination)
+    assert receipt["all_three_archives_restored_and_verified_from_secondary_only"]
+    assert receipt["restored_private_provenance_manifest_verified"]
+    assert not receipt["full_P0_release_gate_passed"]
+    assert all(old.file_sha256(destination / item["filename"]) == item["sha256"]
+               for item in registry.values())
+    assert (destination / "PRIVATE_original_2023_source_provenance.json").read_bytes() == (
+        other / "PRIVATE_original_2023_source_provenance.json").read_bytes()
+    with pytest.raises(old.EvidenceEscrowError, match="new, separate"):
+        rec.restore_from_secondary(root, other, destination)
+
+
+def test_legacy_secondary_without_manifest_requires_upgrade_for_restore(tmp_path, monkeypatch):
+    root, other, registry = fake_data(tmp_path, monkeypatch)
+    for entry in registry.values():
+        shutil.copyfile(root / entry["filename"], other / entry["filename"])
+    assert not rec.verify_pair(root, other)["secondary_independent_provenance_manifest_sha_bytes_verified"]
+    with pytest.raises(old.EvidenceEscrowError, match="lacks independent provenance"):
+        rec.restore_from_secondary(root, other, tmp_path / "restore")
+    assert rec.verify_pair(root, other, make_secondary=True)[
+        "secondary_independent_provenance_manifest_sha_bytes_verified"]
+
+
+def test_inconsistent_secondary_manifest_never_overwritten(tmp_path, monkeypatch):
+    root, other, _ = fake_data(tmp_path, monkeypatch)
+    rec.verify_pair(root, other, make_secondary=True)
+    p = other / "PRIVATE_original_2023_source_provenance.json"
+    p.write_bytes(b"tampered")
+    with pytest.raises(old.EvidenceEscrowError, match="manifest differs"):
+        rec.verify_pair(root, other, make_secondary=True)
+    assert p.read_bytes() == b"tampered"
+
+
+def test_original_data_rejected_from_other_git_tree(tmp_path):
+    other = tmp_path / "another_repository"
+    other.mkdir()
+    (other / ".git").mkdir()
+    with pytest.raises(old.EvidenceEscrowError, match="OUTSIDE every Git working tree"):
+        old.legal_destination(other / "nested" / "private")
+
+
+def test_original_data_rejected_from_git_linked_worktree(tmp_path):
+    other = tmp_path / "linked_worktree"
+    other.mkdir()
+    (other / ".git").write_text("gitdir: /synthetic/gitdir")
+    with pytest.raises(old.EvidenceEscrowError, match="OUTSIDE every Git working tree"):
+        old.legal_destination(other / "private")
+
+
+def test_offline_source_adoption_does_not_require_token_or_network(tmp_path, monkeypatch):
+    root, _, registry = fake_data(tmp_path, monkeypatch)
+    manifest_path = root / "PRIVATE_original_2023_source_provenance.json"
+    manifest_path.unlink()
+    for i, entry in enumerate(registry.values()):
+        entry.update(artifact_id=i, kind="synthetic_test_not_provider_data")
+    monkeypatch.setattr(old, "REGISTER", registry)
+    def no_network(*args, **kwargs):
+        pytest.fail("offline adoption unexpectedly attempted network access")
+    result = old.preserve(root, opener=no_network, adopt_existing_only=True)
+    assert manifest_path.is_file()
+    assert result["copied_to_public_GitHub"] is False
+    assert all(x["verified_private_escrow_status"] == "existing_verified_offline"
+               for x in result["original_source_SHA_lock"].values())
+
+
+def test_offline_adoption_missing_original_refuses_manifest(tmp_path, monkeypatch):
+    root, _, registry = fake_data(tmp_path, monkeypatch)
+    manifest_path = root / "PRIVATE_original_2023_source_provenance.json"
+    manifest_path.unlink()
+    monkeypatch.setattr(old, "REGISTER", registry)
+    (root / registry["E"]["filename"]).unlink()
+    with pytest.raises(old.EvidenceEscrowError, match="archive unavailable"):
+        old.preserve(root, adopt_existing_only=True)
+    assert not manifest_path.exists()
