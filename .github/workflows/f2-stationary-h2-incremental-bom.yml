@@ -1,0 +1,60 @@
+name: F2-L1 — real OEM stationary Type I H2 module and source-2023 20t to 40t incremental BOM
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'research/F2_L1_STATIONARY_TYPEI_OEM_AND_STANDARDS_SOURCE_REGISTER_v1.json'
+      - 'src/ptxflex/f2_stationary_incremental_bom.py'
+      - 'tests/test_f2_stationary_incremental_bom.py'
+      - '.github/workflows/f2-stationary-h2-incremental-bom.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual_manufacturer_source_and_200bar_real_gas_typeI_BOM:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev,physics]'
+      - name: Test original IJHE 2.4t Type I reference, heiserTEC 210bar PED module, mobile TPED reject, source F3C H2 duty
+        run: |
+          python -m pytest -q tests/test_f2_stationary_incremental_bom.py tests/test_storage_reference_vessels.py tests/test_f3_pressure_storage_duty.py
+      - name: Generate original source-locked engineering F2/L1 component-scope plus known shell-only mass
+        run: |
+          mkdir -p outputs
+          python -m ptxflex.f2_stationary_incremental_bom --output outputs/F2_L1_2023_source_incremental_20t_to_40t_stationary_typeI_200bar_BOM_SCOPE_NOT_complete_native_LCI.json
+          python - <<'PY'
+          import json,hashlib,base64,pathlib
+          p=pathlib.Path("outputs/F2_L1_2023_source_incremental_20t_to_40t_stationary_typeI_200bar_BOM_SCOPE_NOT_complete_native_LCI.json")
+          raw=p.read_bytes();d=json.loads(raw)
+          assert d["schema_version"]=="ptxflex.f2_l1_typeI_200bar_incremental_stationary_h2_equipment_requirements.v1"
+          assert d["original_model_E_and_EplusS_archives_source_SHA256"]["E"]=="069455704573825f4e709e6705f5db43823722909cb93a37bd86b978636fb051"
+          assert d["two_storage_capacity_semantics_not_combined"]
+          assert d["heiserTEC_stationary_PED_vs_mobile_TPED_confusion_rejected"]
+          assert d["reported_reference_vessel_mass_is_empty_equipment_not_hydrogen_or_raw_steel_input"]
+          assert not d["full_project_LCA_TE_A_allowed"]
+          for mode,q in d["modes"].items():
+              v=q["incremental_only_research_sensitivity"]
+              assert v["net_additional_published_reference_vessel_count"]>700
+              assert v["net_additional_published_empty_vessel_equipment_mass_kg"]==v["net_additional_published_reference_vessel_count"]*2400
+              assert v["source_vessel_mass_is_NOT_virgin_steel_input_kg"]
+              assert v["incremental_native_BAFU_storage_CO2e_kg"] is None
+              assert v["incremental_installed_storage_CAPEX_eur"] is None
+              assert q["commercial_manufacturer_candidate"]["stationary_module_empty_mass_kg"] is None
+              assert not q["commercial_manufacturer_candidate"]["mobile_TPED_935kg_reference_may_be_applied_to_stationary_PED"]
+              assert len(q["required_incremental_system_foreground_BOM"])==19
+              assert all(v["empty_mass_kg"] is None for v in q["required_incremental_system_foreground_BOM"][1:])
+              assert not q["complete_manufacturer_warrantied_typeI_bank_BOM"]
+          print("F2_L1_STATIONARY_BOM_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F2_L1_STATIONARY_BOM_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: real OEM PED stationary source, source 200bar Type I empty mass, 2023 H2 duty, all missing hardware prices GWP and material-grade quantities explicit.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F2-L1-2023-source-20t-40t-STATIONARY-TYPEI-PED-BOM-SCOPE-NOT-final-LCA
+          path: outputs/
+          retention-days: 90

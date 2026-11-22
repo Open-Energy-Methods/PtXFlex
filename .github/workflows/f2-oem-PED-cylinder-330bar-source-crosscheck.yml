@@ -1,0 +1,55 @@
+name: F2-L1 — genuine OEM PED 330bar 50L 85.5kg hydrogen cylinder cross-check to source 200bar screening
+on:
+  push:
+    branches: ['feat/milp-methanol-baseline']
+    paths:
+      - 'research/F2_L1_INDEPENDENT_OEM_PED_50L_330BAR_H2_CYLINDER_AND_EN17533_SOURCE_v1.json'
+      - 'src/ptxflex/f2_oem_PED_cylinder_200bar_sensitivity.py'
+      - 'tests/test_f2_oem_PED_cylinder_200bar_sensitivity.py'
+      - '.github/workflows/f2-oem-PED-cylinder-330bar-source-crosscheck.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  genuine_OEM_stationary_cylinder_330bar_50L_uninstalled_equipment_sensitivity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev,physics]'
+      - name: Verify actual OEM 330bar PED 50L 85.5kg H2 cylinder, NEN-EN 17533:2025, negative manufacturer/pressure/LCI controls
+        run: |
+          python -m pytest -q tests/test_f2_oem_PED_cylinder_200bar_sensitivity.py tests/test_f2_stationary_incremental_bom.py tests/test_storage_reference_vessels.py
+      - name: Run cross-check at hypothesis 200bar(a) 20bar(a) 313K; NOT an OEM vendor plant design
+        run: |
+          mkdir -p outputs
+          python -m ptxflex.f2_oem_PED_cylinder_200bar_sensitivity --output outputs/F2_L1_OEM_heisertec_PED_330bar_50L_85_5kg_source_200bar_313K_NOT_certified_BOM.json
+          python - <<'PY'
+          import pathlib,hashlib,json,base64
+          p=pathlib.Path("outputs/F2_L1_OEM_heisertec_PED_330bar_50L_85_5kg_source_200bar_313K_NOT_certified_BOM.json")
+          raw=p.read_bytes();x=json.loads(raw)
+          assert x["schema_version"]=="ptxflex.f2_l1_independent_heiserTEC_330bar_PED_50L_OEM_mass_at_200bara_screen.v1"
+          assert x["original_200bar_paper_F2_source_SHA256"]=="1315d1181b9d1eab6d3368425c9571dbe295c3360935d2972403bf3c60e2dc47"
+          assert x["standard_for_individual_cylinders_not_manifolded_assemblies"]
+          assert x["manufacturer_oem_product_330bar_nominal_pressure_not_same_as_200bar_screen"]
+          assert x["manufacturer_50L_85_5kg_is_H2_pressure_cylinder_not_mobile_module_frame"]
+          assert x["no_vendor_DCF_LCA_or_PandID_signoff"]
+          assert not x["whole_plant_comparison_release_ready"]
+          for mode,r in x["modeled_source_inventory_modes"].items():
+              assert r["hypothetical_extra_OEM_empty_cylinder_hardware_mass_kg"]==r["hypothetical_extra_cylinders_count"]*85.5
+              assert r["manufacturer_grade_and_H2_fatigue_conformity_for_actual_200bar_313K_duty"] is None
+              assert r["vendor_module_frame_manifold_valves_fabrication_mass_kg"] is None
+              assert r["native_BAFU2026_v1_1_typeI_compatible_manufacturing_GWP_kgCO2e"] is None
+              assert r["full_tank_inc_CAPEX_EUR"] is None
+          print("F2_L1_OEM_PED_CYLINDER_SHA256="+hashlib.sha256(raw).hexdigest())
+          print("F2_L1_OEM_PED_CYLINDER_BASE64="+base64.b64encode(raw).decode("ascii"))
+          print("PASS: original OEM stationary-compatible hydrogen cylinder manufacture empty mass verified, independently EOS screened at off-rating 200bar(a) and 313K; missing assembly/LCI costs are null.")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: F2-L1-OEM-PED-330bar-50L-real-empty-cylinder-mass-NOT-assembly-vendor-LCA
+          path: outputs/
+          retention-days: 90

@@ -1,0 +1,62 @@
+name: RC2-C exact locked PtXFlex environment qualification
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'environment/**'
+      - '.gitattributes'
+      - 'scripts/rc2c_*.py'
+      - '.github/workflows/rc2c-locked.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+  pull_request:
+    paths:
+      - 'environment/**'
+      - '.gitattributes'
+      - 'scripts/rc2c_*.py'
+      - '.github/workflows/rc2c-locked.yml'
+      - 'src/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rc2c-flex-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  locked:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python: '3.11.18'
+          - os: windows-2022
+            python: '3.11.9'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          architecture: x64
+      - name: Fresh venv, verify wheels and install without dependency resolution
+        shell: bash
+        run: |
+          python -m venv .rc2c-venv
+          if [ "$RUNNER_OS" = Windows ]; then P=.rc2c-venv/Scripts/python.exe; else P=.rc2c-venv/bin/python; fi
+          "$P" scripts/rc2c_environment_lock.py install
+          "$P" scripts/rc2c_environment_lock.py verify
+          "$P" scripts/rc2c_numerical_reproducibility.py
+          "$P" -m pytest -q
