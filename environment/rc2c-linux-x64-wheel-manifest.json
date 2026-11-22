@@ -1,0 +1,134 @@
+{
+  "schema": "oem.ptx.rc2c.wheel_candidates.v1",
+  "candidate_run_id": 44418233340,
+  "job_id": 135204053539,
+  "python": "3.11.18",
+  "target": "linux-x64",
+  "wheels": {
+    "attrs": {
+      "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309",
+      "version": "26.1.0",
+      "wheel_filename": "attrs-26.1.0-py3-none-any.whl"
+    },
+    "colorama": {
+      "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+      "version": "0.4.6",
+      "wheel_filename": "colorama-0.4.6-py2.py3-none-any.whl"
+    },
+    "coolprop": {
+      "sha256": "e9bb1d10df8a1b29ba1387f3e7896f7878ec16e3af46b06f82831150bacb7a39",
+      "version": "8.0.0",
+      "wheel_filename": "coolprop-8.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
+    },
+    "iniconfig": {
+      "sha256": "9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7",
+      "version": "2.3.1",
+      "wheel_filename": "iniconfig-2.3.1-py3-none-any.whl"
+    },
+    "jsonschema": {
+      "sha256": "d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce",
+      "version": "4.26.0",
+      "wheel_filename": "jsonschema-4.26.0-py3-none-any.whl"
+    },
+    "jsonschema-specifications": {
+      "sha256": "98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe",
+      "version": "2025.9.1",
+      "wheel_filename": "jsonschema_specifications-2025.9.1-py3-none-any.whl"
+    },
+    "numpy": {
+      "sha256": "89cd468399cfd2504718f0ba50e410dca55a170b61a02ad92bb18c8a65186e93",
+      "version": "2.4.6",
+      "wheel_filename": "numpy-2.4.6-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    "packaging": {
+      "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
+      "version": "26.3",
+      "wheel_filename": "packaging-26.3-py3-none-any.whl"
+    },
+    "pandas": {
+      "sha256": "b98560e98cb334799c0b07ca7967ac361a47326e9b4e5a7dfb5ab2b1c9d35a1b",
+      "version": "2.3.3",
+      "wheel_filename": "pandas-2.3.3-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    "pip": {
+      "sha256": "9655943313a94722b7774661c21049070f6bbb0a1516bf02f7c8d5d9201514cd",
+      "version": "25.3",
+      "wheel_filename": "pip-25.3-py3-none-any.whl"
+    },
+    "pluggy": {
+      "sha256": "7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec",
+      "version": "1.7.0",
+      "wheel_filename": "pluggy-1.7.0-py3-none-any.whl"
+    },
+    "pygments": {
+      "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9",
+      "version": "2.21.0",
+      "wheel_filename": "pygments-2.21.0-py3-none-any.whl"
+    },
+    "pytest": {
+      "sha256": "07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588",
+      "version": "9.2.0",
+      "wheel_filename": "pytest-9.2.0-py3-none-any.whl"
+    },
+    "python-dateutil": {
+      "sha256": "a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c",
+      "version": "4.0.0",
+      "wheel_filename": "python_dateutil-4.0.0-py3-none-any.whl"
+    },
+    "pytz": {
+      "sha256": "7fed3fee8fd6bd4a2b7b75a8d56021d0624127bf69bd5691f115db929ac570b3",
+      "version": "2026.6",
+      "wheel_filename": "pytz-2026.6-py2.py3-none-any.whl"
+    },
+    "pyyaml": {
+      "sha256": "3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85",
+      "version": "6.0.2",
+      "wheel_filename": "PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+    },
+    "referencing": {
+      "sha256": "381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231",
+      "version": "0.37.0",
+      "wheel_filename": "referencing-0.37.0-py3-none-any.whl"
+    },
+    "rpds-py": {
+      "sha256": "136a1c3fe4402b7008bc81cb62ee538481795b61a7e83df88dff3b3f02b726ff",
+      "version": "2026.9.1",
+      "wheel_filename": "rpds_py-2026.9.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+    },
+    "scipy": {
+      "sha256": "43af8d1f3bea642559019edfe64e9b11192a8978efbd1539d7bc2aaa23d92de4",
+      "version": "1.17.1",
+      "wheel_filename": "scipy-1.17.1-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl"
+    },
+    "setuptools": {
+      "sha256": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922",
+      "version": "80.9.0",
+      "wheel_filename": "setuptools-80.9.0-py3-none-any.whl"
+    },
+    "threadpoolctl": {
+      "sha256": "43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb",
+      "version": "3.6.0",
+      "wheel_filename": "threadpoolctl-3.6.0-py3-none-any.whl"
+    },
+    "typing-extensions": {
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+      "version": "4.16.0",
+      "wheel_filename": "typing_extensions-4.16.0-py3-none-any.whl"
+    },
+    "tzdata": {
+      "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec",
+      "version": "2026.6",
+      "wheel_filename": "tzdata-2026.6-py2.py3-none-any.whl"
+    },
+    "wheel": {
+      "sha256": "708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248",
+      "version": "0.45.1",
+      "wheel_filename": "wheel-0.45.1-py3-none-any.whl"
+    },
+    "xarray": {
+      "sha256": "fe349fa871628b1a0a5217af3fe1283a2862d5485156e6eda354fffb81c3bb7c",
+      "version": "2026.9.0",
+      "wheel_filename": "xarray-2026.9.0-py3-none-any.whl"
+    }
+  }
+}

@@ -36,3 +36,6 @@ private-source-escrow/
 **/price-2023/
 **/price-2024/
 **/wind-2023-recovered/
+
+# RC2-C isolated locked numerical reproduction environment
+.rc2c-venv/
