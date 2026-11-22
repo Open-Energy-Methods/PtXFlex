@@ -1,5 +1,21 @@
 # PtXFlex — weather/market-grounded PtX value-chain optimization research
 
+> **Research software (not scientific v1.0):** PtXFlex contains research-stage MILP dispatch, source-year evidence, hydrogen storage physics, sensitivity analysis and reproducibility controls. No industrial plant qualification, certified OEM equipment design or complete storage LCA is claimed.
+
+**Reviewer entry points:** [Source/provenance and scientific-governance receipt](docs/RC2_SOURCE_CUSTODY_AND_SCIENTIFIC_GOVERNANCE_2026-11-18.md) · [RC2-C reproducible Python environments](docs/RC2C_REPRODUCIBLE_NUMERICAL_ENVIRONMENT.md) · [Research programme and remaining gates](docs/PROGRAMME_MASTER_PLAN_v1.0.md). Original private source archives are not distributed.
+
+<!-- portfolio-reader-guide-2026:start -->
+## Engineering portfolio reader's guide (November 2026)
+
+**What to inspect:** Experimental wind/electricity–hydrogen–CO₂–e-methanol optimisation with reproducibility and boundary checks; not a plant-calibrated commercial process design.
+
+**Portfolio context:** [Project or engineering selection](https://abhijith-sivaprasadan.github.io/for/armada-2026.html) · [Armada 2026 employer-facing selection](https://abhijith-sivaprasadan.github.io/for/armada-2026.html).
+
+These navigation links do not supersede the research status, assumptions, provenance, licences or validation limits documented above. This independent research project is not an employer-commissioned deliverable or externally qualified engineering product.
+<!-- portfolio-reader-guide-2026:end -->
+
+---
+
 ## 18 November 2026 — RC2-A/B source custody and governance reconciliation
 
 [RC2 source custody and recovery protocol](docs/RC2_SOURCE_CUSTODY_AND_SCIENTIFIC_GOVERNANCE_2026-11-18.md) records new independent readback of all three pre-existing private frozen 2023 E/E+S/A44 archives: registered byte lengths, ZIP CRC and SHA256 match. API expiry was also rechecked, first source expiry 24 Dec 2026 19:24:29 UTC. New token-free offline adoption and secondary-only restoration scripts/tests preserve the original archive+manifest outside every Git tree. An independently reviewed permanent separate backup, full source rights and external review remain open. Shared RC2-B receipt reconciles 2 source-admitted 2022/2024 pairs, 4 selected-service year/mode cases and 2 separate H30/W090 cases; all 12 full scientific programme gates remain NOT_PASSED. No raw provider data or private storage locator is published.
